@@ -1,6 +1,6 @@
-# kundali-report
+# vedic-astrology
 
-Generate a Jyotish report (PDF and/or self-contained HTML) from a birth
+`kundali-report` — generate a Jyotish report (PDF and/or self-contained HTML) from a birth
 date, time, and place: North + South Indian diagrams, positions with
 dignities (incl. moolatrikona), panchanga and avakahada birth constants,
 yogas, whole-sign aspects, Vimshottari dasha to pratyantar level,
