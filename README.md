@@ -42,9 +42,11 @@ Open the URL on a phone and *Add to Home Screen* — it is an installable
 PWA. First build on a Pi takes roughly 5–15 minutes; later runs are much
 quicker.
 
-**Re-run the same command to upgrade.** It backs the database up to the
-host first, builds while the old container keeps serving, and rolls back
-to the previous image if the new one fails its health check.
+**Re-run the same command to upgrade.** It builds while the old container
+keeps serving, does nothing at all if nothing changed, smoke-tests the new
+image before swapping it in, backs the database up to the host, and rolls
+back if the new version turns out unhealthy. A PDF someone is downloading
+finishes rather than arriving truncated.
 
 It publishes on `0.0.0.0:8777` so your phone can reach it. There is no
 authentication — keep it on a network you trust, or install it with

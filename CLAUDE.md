@@ -72,6 +72,11 @@ The package is a layered pipeline: ephemeris → pure computation → rendering.
   number it shows comes from the modules above; downloads call
   `report.py` / `html_report.py`. When adding a report section, add it
   to the PDF, the HTML report and `webapp/service.summary()` together.
+- `server.run()` drains on SIGTERM/SIGINT: it stops accepting, waits up
+  to `DRAIN_TIMEOUT` for in-flight requests (a PDF render takes seconds),
+  then exits 0. Upgrades depend on it — keep new long-running work inside
+  the request path so the `_inflight` counter sees it, and keep
+  `stop_grace_period` in the compose file above `DRAIN_TIMEOUT`.
 - `webapp/service.py` holds `_LOCK` around every computation because
   Swiss Ephemeris' sidereal mode is process-global — a concurrent
   lahiri request would otherwise poison a raman one. Keep new entry
@@ -83,7 +88,9 @@ The package is a layered pipeline: ephemeris → pure computation → rendering.
   upgrade and rolling back on a failed health check. Each must keep
   working when piped from curl *and* when run from a checkout:
   `scripts/quickstart.sh` (the headline one-liner: installs Docker if
-  missing, builds the image, runs Compose; keeps the previous image as
+  missing, builds the image, runs Compose; it exits early when the built
+  image already matches the running one, smoke-tests a new image in a
+  throwaway container before swapping, and keeps the previous image as
   `kundali-web:prev` to roll back to) and `scripts/install-systemd.sh`
   (the non-container path: a venv per build under `$PREFIX/venvs` with
   the `$PREFIX/venv` symlink swapping between them, because a venv can
