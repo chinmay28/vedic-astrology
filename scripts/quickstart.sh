@@ -1,53 +1,44 @@
 #!/usr/bin/env bash
 #
-# kundali-web - Linux quick-start installer (Ubuntu / Debian / Raspberry Pi OS).
-#
-# One command, run as root, installs the web GUI as a hardened systemd service:
+# kundali-web - one-command install, in Docker. Written for a Raspberry Pi
+# (Raspberry Pi OS 64-bit or 32-bit) and equally happy on any Debian/Ubuntu
+# host, x86 or ARM:
 #
 #   curl -fsSL https://raw.githubusercontent.com/chinmay28/vedic-astrology/main/scripts/quickstart.sh | sudo bash
 #
-# What it installs: the repo is cloned to $PREFIX/src and pip-installed into a
-# private virtualenv at $PREFIX/venv, which systemd runs as a dedicated user.
-# There is no build step and no JS toolchain - the PWA is served from the
-# package's static directory as-is.
+# Starting from a fresh machine it installs Docker if it is missing, fetches
+# the source, builds the image and starts the container. Your charts live in
+# a Docker volume, so rebuilding or removing the container never touches
+# them - see DEPLOYMENT.md.
 #
-# It is deliberately *non-disruptive* and *data-safe* - re-run it any time to
-# upgrade in place:
+# Re-run the same command to upgrade. It is non-disruptive and data-safe:
 #
-#   * Idempotent. Re-running only swaps in newer code; it never re-initialises
-#     data, and re-running an unchanged version is a no-op restart.
-#   * The live SQLite database lives at a stable path OUTSIDE the source tree
-#     ($DATA_DIR), so cloning, pulling or rebuilding can never clobber it.
-#   * Every upgrade STOPS the service, snapshots the database (+ WAL/SHM
-#     sidecars) to a timestamped backup, THEN swaps code in - so the backup is
-#     always taken against a quiesced database.
-#   * Each install builds its own virtualenv under $PREFIX/venvs and flips the
-#     $PREFIX/venv symlink to it, so the old version keeps serving while the
-#     new one installs. If the install fails, the running service is untouched.
-#     (A virtualenv cannot be moved - its console scripts hardcode their own
-#     path - so the symlink is what makes the swap atomic.)
-#   * After restart we poll /api/health; if the new version is unhealthy we
-#     ROLL BACK to the previous virtualenv and commit, restore the pre-upgrade
-#     database snapshot, and restart - so a bad upgrade self-heals to the last
-#     good state with its data.
+#   * The database is backed up to the host before anything is rebuilt (via
+#     the app's own export endpoint, so the WAL is folded in), and the
+#     newest $BACKUP_KEEP copies are kept.
+#   * The image is built while the old container keeps serving. A failed
+#     build leaves the running version alone.
+#   * The previous image is retagged :prev first, so if the new one fails
+#     its health check we roll back to it and restart.
+#
+# On a Pi, expect the first build to take a while (roughly 5-15 minutes on a
+# Pi 4; longer on a Pi 3 or 32-bit OS, where pyswisseph compiles from
+# source). Later runs reuse Docker's layer cache and are much quicker.
 #
 # Configure via environment variables (all optional):
 #
-#   KUNDALI_REPO      git URL to clone        (default: https://github.com/chinmay28/vedic-astrology.git)
-#   KUNDALI_REF       branch/tag/commit       (default: main)
-#   KUNDALI_USER      service system user     (default: kundali)
-#   KUNDALI_PREFIX    install prefix          (default: /opt/kundali; source -> $PREFIX/src)
-#   KUNDALI_DATA_DIR  database + backups dir  (default: /var/lib/kundali)
-#   KUNDALI_SERVICE   systemd unit name       (default: kundali-web; change it
-#                                              to run a second instance on one
-#                                              host, with its own PREFIX/DATA_DIR)
-#   PORT              port to listen on       (default: 8777)
-#   HOST              bind address            (default: 0.0.0.0)
-#   PYTHON            interpreter to build on (default: python3; needs >= 3.10)
-#   BACKUP_KEEP       pre-upgrade backups kept (default: 10)
+#   KUNDALI_REPO     git URL to clone      (default: https://github.com/chinmay28/vedic-astrology.git)
+#   KUNDALI_REF      branch/tag/commit     (default: main)
+#   KUNDALI_PREFIX   where the source goes (default: /opt/kundali)
+#   KUNDALI_BIND     address to publish on (default: 0.0.0.0 - reachable from
+#                                           your phone; 127.0.0.1 keeps it on
+#                                           this machine only)
+#   PORT             port to publish       (default: 8777)
+#   BACKUP_DIR       host backup directory (default: /var/lib/kundali/backups)
+#   BACKUP_KEEP      backups kept          (default: 10)
+#   INSTALL_DOCKER   auto | never          install Docker if missing (default: auto)
 #
 set -euo pipefail
-umask 022      # the service user must be able to read the code it runs
 
 # ---------------------------------------------------------------------------
 # Logging
@@ -64,69 +55,52 @@ warn() { printf '%swarn%s %s\n' "$C_YELLOW" "$C_OFF" "$*" >&2; }
 die()  { printf '%serr %s %s\n' "$C_RED" "$C_OFF" "$*" >&2; exit 1; }
 step() { printf '\n%s%s%s\n' "$C_DIM" "$*" "$C_OFF"; }
 
-# ---------------------------------------------------------------------------
-# Must be root (system-wide service + dedicated user)
-# ---------------------------------------------------------------------------
 if [ "$(id -u)" -ne 0 ]; then
   die "Run as root: curl -fsSL .../quickstart.sh | sudo bash   (or: sudo ./scripts/quickstart.sh)"
 fi
-command -v systemctl >/dev/null 2>&1 || die "systemd is required (no systemctl found)."
 
 # ---------------------------------------------------------------------------
 # Configuration
 # ---------------------------------------------------------------------------
 KUNDALI_REPO="${KUNDALI_REPO:-https://github.com/chinmay28/vedic-astrology.git}"
 KUNDALI_REF="${KUNDALI_REF:-main}"
-SVC_USER="${KUNDALI_USER:-kundali}"
 PREFIX="${KUNDALI_PREFIX:-/opt/kundali}"
-DATA_DIR="${KUNDALI_DATA_DIR:-/var/lib/kundali}"
+BIND="${KUNDALI_BIND:-0.0.0.0}"
 PORT="${PORT:-8777}"
-HOST="${HOST:-0.0.0.0}"
-PYTHON="${PYTHON:-python3}"
+BACKUP_DIR="${BACKUP_DIR:-/var/lib/kundali/backups}"
 BACKUP_KEEP="${BACKUP_KEEP:-10}"
+INSTALL_DOCKER="${INSTALL_DOCKER:-auto}"
 
 SRC_DIR="$PREFIX/src"
-VENV="$PREFIX/venv"                    # symlink to the live build below
-VENVS_DIR="$PREFIX/venvs"
-NEW_VENV="$VENVS_DIR/build-$(date +%Y%m%d-%H%M%S)-$$"
-PREV_VENV=""                           # resolved in step 6, before the flip
-DB_PATH="$DATA_DIR/kundali.sqlite"
-BACKUP_DIR="$DATA_DIR/backups"
-SERVICE_NAME="${KUNDALI_SERVICE:-kundali-web}"
-UNIT_PATH="/etc/systemd/system/${SERVICE_NAME}.service"
-PY_MIN_MINOR=10        # pyproject requires-python = ">=3.10"
+IMAGE="kundali-web:local"
+PREV_IMAGE="kundali-web:prev"
+PROJECT="kundali"                 # matches `name:` in docker-compose.yml
+HEALTH_URL="http://127.0.0.1:$PORT/api/health"
 
-# The source tree is installed and updated as root but read by the service
-# user, so git's "dubious ownership" guard can trip on an existing checkout
-# (including one an earlier install chowned). Scope the exception to this tree.
-git_src() { git -C "$SRC_DIR" -c safe.directory="$SRC_DIR" "$@"; }
-
-# If this script is run from inside an existing checkout
-# (sudo ./scripts/quickstart.sh) rather than piped from curl, install that
-# checkout instead of cloning a second copy.
+# Run from inside a checkout (sudo ./scripts/quickstart.sh)? Use that tree.
 SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" >/dev/null 2>&1 && pwd)"
 LOCAL_CHECKOUT=""
 if git -C "$SELF_DIR" rev-parse --show-toplevel >/dev/null 2>&1; then
   top="$(git -C "$SELF_DIR" rev-parse --show-toplevel)"
   if grep -q '^name = "kundali-report"' "$top/pyproject.toml" 2>/dev/null; then
     LOCAL_CHECKOUT="$top"
-    SRC_DIR="$top"     # install from where the user already cloned
+    SRC_DIR="$top"
   fi
 fi
 
-log "kundali-web quick start"
-printf '  %-10s %s\n' "source"   "$SRC_DIR$( [ -n "$LOCAL_CHECKOUT" ] && echo " (existing checkout)" )"
-printf '  %-10s %s\n' "venv"     "$VENV"
-printf '  %-10s %s\n' "data"     "$DATA_DIR"
-printf '  %-10s %s\n' "database" "$DB_PATH"
-printf '  %-10s %s\n' "service"  "${SERVICE_NAME}.service (user: $SVC_USER)"
-printf '  %-10s %s\n' "listen"   "http://$HOST:$PORT"
+git_src() { git -C "$SRC_DIR" -c safe.directory="$SRC_DIR" "$@"; }
+compose() { docker compose -f "$SRC_DIR/docker-compose.yml" "$@"; }
+
+log "kundali-web quick start (Docker)"
+printf '  %-9s %s\n' "source"  "$SRC_DIR$( [ -n "$LOCAL_CHECKOUT" ] && echo " (existing checkout)" )"
+printf '  %-9s %s\n' "data"    "docker volume ${PROJECT}_kundali-data"
+printf '  %-9s %s\n' "backups" "$BACKUP_DIR"
+printf '  %-9s %s\n' "listen"  "http://$BIND:$PORT"
 
 # ---------------------------------------------------------------------------
-# 1. Prerequisites: git, curl, Python >= 3.10 with venv, and libcairo
-#    (cairosvg rasterises the chart diagrams and the PWA icons).
+# 1. Docker (installed here if missing) + git
 # ---------------------------------------------------------------------------
-step "[1/7] Prerequisites"
+step "[1/6] Prerequisites"
 
 APT=0; command -v apt-get >/dev/null 2>&1 && APT=1
 APT_UPDATED=0
@@ -135,76 +109,64 @@ apt_install() {
   if [ "$APT_UPDATED" -eq 0 ]; then apt-get update -y >/dev/null; APT_UPDATED=1; fi
   DEBIAN_FRONTEND=noninteractive apt-get install -y "$@" >/dev/null
 }
-ensure_cmd() {          # ensure_cmd <command> <apt package>
-  command -v "$1" >/dev/null 2>&1 && return 0
-  log "installing $2…"
-  apt_install "$2" || die "'$1' is missing and apt-get is unavailable. Install it and re-run."
-}
-ensure_cmd curl curl
-ensure_cmd git git
+for cmd_pkg in "curl:curl" "git:git"; do
+  cmd="${cmd_pkg%%:*}"; pkg="${cmd_pkg##*:}"
+  command -v "$cmd" >/dev/null 2>&1 && continue
+  log "installing $pkg…"
+  apt_install "$pkg" || die "'$cmd' is missing and apt-get is unavailable. Install it and re-run."
+done
 ok "git $(git --version | awk '{print $3}'), curl present"
 
-command -v "$PYTHON" >/dev/null 2>&1 || ensure_cmd "$PYTHON" python3
-py_minor="$("$PYTHON" -c 'import sys; print(sys.version_info[1])' 2>/dev/null || echo 0)"
-py_major="$("$PYTHON" -c 'import sys; print(sys.version_info[0])' 2>/dev/null || echo 0)"
-if [ "${py_major:-0}" -ne 3 ] || [ "${py_minor:-0}" -lt "$PY_MIN_MINOR" ]; then
-  die "Python >= 3.$PY_MIN_MINOR is required (found $("$PYTHON" -V 2>&1)). Install a newer python3 and re-run, or set PYTHON=/path/to/python3.x"
+if ! command -v docker >/dev/null 2>&1; then
+  [ "$INSTALL_DOCKER" = never ] && die "Docker is not installed. Install it (https://docs.docker.com/engine/install/) and re-run, or set INSTALL_DOCKER=auto."
+  case "$(uname -m)" in
+    aarch64 | arm64 | armv7l | x86_64 | amd64) ;;
+    *) die "Unsupported architecture $(uname -m) for the automatic Docker install; install Docker manually and re-run." ;;
+  esac
+  log "installing Docker via get.docker.com ($(uname -m)) - this takes a few minutes on a Pi…"
+  curl -fsSL https://get.docker.com | sh \
+    || die "the Docker install script failed. Install Docker manually (https://docs.docker.com/engine/install/) and re-run."
+  ok "Docker installed"
 fi
-ok "$("$PYTHON" -V 2>&1)"
+systemctl enable --now docker >/dev/null 2>&1 || true
+docker info >/dev/null 2>&1 \
+  || die "the Docker daemon is not responding. Start it (systemctl start docker) and re-run."
+ok "docker $(docker version --format '{{.Server.Version}}' 2>/dev/null || echo present)"
 
-if ! "$PYTHON" -c 'import venv, ensurepip' >/dev/null 2>&1; then
-  log "installing the venv module…"
-  apt_install "python3-venv" \
-    || apt_install "python$("$PYTHON" -c 'import sys;print("%d.%d"%sys.version_info[:2])')-venv" \
-    || die "Python's venv module is missing. Install python3-venv and re-run."
+if ! docker compose version >/dev/null 2>&1; then
+  log "installing the Docker Compose plugin…"
+  apt_install docker-compose-plugin \
+    || die "'docker compose' is unavailable. Install the compose plugin and re-run."
 fi
-ok "venv module present"
+ok "compose $(docker compose version --short 2>/dev/null || echo present)"
 
-# cairosvg dlopen()s libcairo at import time; without it the service starts and
-# then fails on the first diagram.
-if ! ldconfig -p 2>/dev/null | grep -q 'libcairo\.so'; then
-  log "installing libcairo2 (needed by cairosvg)…"
-  apt_install libcairo2 \
-    || warn "could not install libcairo2 automatically - install the cairo library if diagrams fail."
-fi
-ok "cairo present"
-
-# ---------------------------------------------------------------------------
-# 2. Dedicated system user (home = data dir, no login shell)
-# ---------------------------------------------------------------------------
-step "[2/7] Service user '$SVC_USER'"
-if id -u "$SVC_USER" >/dev/null 2>&1; then
-  ok "user '$SVC_USER' already exists"
-else
-  nologin="$(command -v nologin || echo /usr/sbin/nologin)"
-  useradd --system --home-dir "$DATA_DIR" --create-home --shell "$nologin" "$SVC_USER"
-  ok "created system user '$SVC_USER'"
+# On a Pi the person running this is usually the one who will use it: let
+# them drive Docker without sudo from now on (takes effect at next login).
+if [ -n "${SUDO_USER:-}" ] && [ "$SUDO_USER" != root ]; then
+  if ! id -nG "$SUDO_USER" | tr ' ' '\n' | grep -qx docker; then
+    usermod -aG docker "$SUDO_USER" 2>/dev/null \
+      && ok "added '$SUDO_USER' to the docker group (log out and back in to use it)"
+  fi
 fi
 
 # ---------------------------------------------------------------------------
-# 3. Source tree. The data directory lives elsewhere and is never touched here.
+# 2. Source
 # ---------------------------------------------------------------------------
-step "[3/7] Source at $SRC_DIR"
-
-# Detect an upgrade BEFORE changing anything: it decides whether we snapshot
-# the database and whether a failed health check should roll back.
+step "[2/6] Source at $SRC_DIR"
 UPGRADE=0
-{ [ -f "$DB_PATH" ] || [ -f "$UNIT_PATH" ]; } && UPGRADE=1
+docker volume inspect "${PROJECT}_kundali-data" >/dev/null 2>&1 && UPGRADE=1
 
-PREV_SHA=""
 if [ -n "$LOCAL_CHECKOUT" ]; then
-  warn "installing your existing checkout in place (no git fetch)."
-  PREV_SHA="$(git_src rev-parse HEAD 2>/dev/null || true)"
-  ok "source at ${PREV_SHA:0:12}"
+  warn "building your existing checkout in place (no git fetch)."
+  ok "source at $(git_src rev-parse --short HEAD 2>/dev/null || echo 'unknown')"
 elif [ -d "$SRC_DIR/.git" ]; then
-  PREV_SHA="$(git_src rev-parse HEAD 2>/dev/null || true)"
   log "updating to $KUNDALI_REF…"
   git_src fetch --filter=blob:none origin "$KUNDALI_REF" \
     || git_src fetch origin "$KUNDALI_REF" \
-    || die "could not fetch '$KUNDALI_REF' from origin in $SRC_DIR - the service is still running the old version."
+    || die "could not fetch '$KUNDALI_REF' - the running container is untouched."
   git_src checkout -q -B deploy FETCH_HEAD \
-    || die "could not check out the fetched ref in $SRC_DIR - the service is still running the old version."
-  ok "updated $( [ -n "$PREV_SHA" ] && echo "${PREV_SHA:0:12} -> " )$(git_src rev-parse --short HEAD)"
+    || die "could not check out the fetched ref - the running container is untouched."
+  ok "source at $(git_src rev-parse --short HEAD)"
 else
   log "cloning $KUNDALI_REPO (ref: $KUNDALI_REF)…"
   install -d -m 755 "$PREFIX"
@@ -213,185 +175,88 @@ else
     || git clone "$KUNDALI_REPO" "$SRC_DIR"
   ok "cloned to $SRC_DIR"
 fi
-[ -f "$SRC_DIR/pyproject.toml" ] || die "no pyproject.toml at $SRC_DIR - checkout failed?"
+[ -f "$SRC_DIR/docker-compose.yml" ] || die "no docker-compose.yml at $SRC_DIR - checkout failed?"
+
+# Where to listen is per-host, so it lives in a .env beside the compose file
+# rather than in the compose file itself.
+cat > "$SRC_DIR/.env" <<ENV
+# written by scripts/quickstart.sh - edit and re-run 'docker compose up -d'
+KUNDALI_BIND=$BIND
+KUNDALI_PORT=$PORT
+ENV
+ok "wrote $SRC_DIR/.env (bind $BIND, port $PORT)"
 
 # ---------------------------------------------------------------------------
-# 4. Build the new virtualenv beside the running one, so a failed install
-#    leaves the live service untouched.
+# 3. Back up the database before touching anything
 # ---------------------------------------------------------------------------
-step "[4/7] Virtualenv (pip install into $NEW_VENV)"
-
-build_venv() {                      # build_venv <target-dir>
-  local target="$1"
-  rm -rf "$target"
-  "$PYTHON" -m venv "$target"
-  "$target/bin/python" -m pip install --quiet --upgrade pip wheel
-  # pyswisseph is a C extension: if no wheel matches this platform, pip needs a
-  # compiler and Python headers. Install them and retry once before giving up.
-  if ! "$target/bin/python" -m pip install --quiet "$SRC_DIR"; then
-    warn "pip install failed - installing build tools and retrying once…"
-    apt_install build-essential "python$("$PYTHON" -c 'import sys;print("%d.%d"%sys.version_info[:2])')-dev" \
-      || apt_install build-essential python3-dev \
-      || true
-    "$target/bin/python" -m pip install --quiet "$SRC_DIR" \
-      || die "pip install failed. Full output: $target/bin/python -m pip install '$SRC_DIR'"
-  fi
-  [ -x "$target/bin/kundali-web" ] || die "install produced no kundali-web entry point"
-  # Import once as a smoke test: this is where a missing libcairo or a broken
-  # pyswisseph wheel surfaces, while the old version is still serving.
-  "$target/bin/python" -c 'import kundali.webapp.server' \
-    || die "the new install cannot be imported - leaving the running service alone."
-}
-
-install -d -m 755 "$PREFIX" "$VENVS_DIR"
-build_venv "$NEW_VENV"
-ok "installed $("$NEW_VENV/bin/python" -c 'import kundali; print("kundali", kundali.__version__)')"
-
-# ---------------------------------------------------------------------------
-# 5. Data dir + pre-upgrade database snapshot
-# ---------------------------------------------------------------------------
-step "[5/7] Data directory + backup"
-install -d -o "$SVC_USER" -g "$SVC_USER" -m 750 "$DATA_DIR" "$BACKUP_DIR"
-ok "data dir ready ($DATA_DIR, owned by $SVC_USER)"
-
-stop_service()  { systemctl stop  "${SERVICE_NAME}.service" 2>/dev/null || true; }
-start_service() { systemctl start "${SERVICE_NAME}.service"; }
-
+step "[3/6] Backup"
 SNAP=""
-if [ "$UPGRADE" -eq 1 ] && [ -f "$DB_PATH" ]; then
-  # Quiesce first so the snapshot is consistent (no live WAL writers).
-  stop_service
+if [ "$UPGRADE" -eq 1 ]; then
+  install -d -m 750 "$BACKUP_DIR"
   ts="$(date +%Y%m%d-%H%M%S)"
   SNAP="$BACKUP_DIR/kundali-$ts.sqlite"
-  cp "$DB_PATH" "$SNAP"
-  for ext in -wal -shm; do
-    [ -f "${DB_PATH}${ext}" ] && cp "${DB_PATH}${ext}" "${SNAP}${ext}"
-  done
-  chown "$SVC_USER":"$SVC_USER" "$SNAP"* 2>/dev/null || true
-  ok "database backed up -> $SNAP"
-  if [ "$BACKUP_KEEP" -gt 0 ]; then
-    ls -1t "$BACKUP_DIR"/kundali-*.sqlite 2>/dev/null \
-      | tail -n +"$((BACKUP_KEEP + 1))" \
-      | while read -r old; do rm -f "$old" "${old}-wal" "${old}-shm"; done
+  # The export endpoint takes a real SQLite backup (WAL folded in); copying
+  # the file out of the volume under a live writer would not.
+  if curl -fsS --max-time 120 "http://127.0.0.1:$PORT/api/export/kundali.sqlite" \
+       -o "$SNAP" 2>/dev/null && [ -s "$SNAP" ]; then
+    ok "database backed up -> $SNAP"
+  else
+    rm -f "$SNAP"; SNAP=""
+    warn "could not reach the running app to back up (not running?) - continuing."
   fi
+  if [ -n "$SNAP" ] && [ "$BACKUP_KEEP" -gt 0 ]; then
+    ls -1t "$BACKUP_DIR"/kundali-*.sqlite 2>/dev/null \
+      | tail -n +"$((BACKUP_KEEP + 1))" | xargs -r rm -f
+  fi
+else
+  ok "first install - nothing to back up yet"
 fi
 
 # ---------------------------------------------------------------------------
-# 6. Swap the virtualenv in, write the unit, (re)start
+# 4. Build (the old container keeps serving meanwhile)
 # ---------------------------------------------------------------------------
-step "[6/7] systemd service"
-stop_service                       # no-op on a first install
-PREV_VENV="$(readlink -f "$VENV" 2>/dev/null || true)"
-# Code stays root-owned and world-readable: the service reads and executes it
-# but cannot rewrite what it runs (ProtectSystem=strict blocks /opt anyway).
-ln -sfn "$NEW_VENV" "$VENV"        # the swap: one symlink, no moved venv
-ok "virtualenv in place ($VENV -> $NEW_VENV)"
-
-# Keep the live build and the one we can roll back to; drop older ones.
-prune_venvs() {
-  local keep_a="$1" keep_b="$2" d
-  for d in "$VENVS_DIR"/*; do
-    [ -d "$d" ] || continue
-    [ "$d" = "$keep_a" ] || [ "$d" = "$keep_b" ] || rm -rf "$d"
-  done
-}
-prune_venvs "$NEW_VENV" "${PREV_VENV:-}"
-
-write_unit() {
-  cat > "$UNIT_PATH" <<UNIT
-[Unit]
-Description=kundali-web - Jyotish chart reports (JSON API + PWA)
-Documentation=https://github.com/chinmay28/vedic-astrology
-After=network-online.target
-Wants=network-online.target
-
-[Service]
-Type=simple
-User=$SVC_USER
-Group=$SVC_USER
-WorkingDirectory=$DATA_DIR
-ExecStart=$VENV/bin/kundali-web --host $HOST --port $PORT --db $DB_PATH
-Environment=KUNDALI_DB=$DB_PATH
-Environment=PYTHONUNBUFFERED=1
-Restart=on-failure
-RestartSec=3
-
-# Hardening - safe on a trusted LAN, defensive if exposure ever widens.
-NoNewPrivileges=true
-ProtectSystem=strict
-ProtectHome=true
-PrivateTmp=true
-PrivateDevices=true
-ProtectClock=true
-ProtectControlGroups=true
-ProtectKernelLogs=true
-ProtectKernelModules=true
-ProtectKernelTunables=true
-RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
-RestrictNamespaces=true
-RestrictSUIDSGID=true
-LockPersonality=true
-SystemCallArchitectures=native
-UMask=0077
-ReadWritePaths=$DATA_DIR
-
-[Install]
-WantedBy=multi-user.target
-UNIT
-}
-write_unit
-systemctl daemon-reload
-systemctl enable "${SERVICE_NAME}.service" >/dev/null 2>&1 || true
-start_service
-ok "service enabled and started"
+step "[4/6] Build the image"
+ROLLBACK=0
+if docker image inspect "$IMAGE" >/dev/null 2>&1; then
+  docker image tag "$IMAGE" "$PREV_IMAGE" && ROLLBACK=1
+fi
+log "building - first time on a Pi this can take 5-15 minutes…"
+compose build \
+  || die "the image build failed. The running container (if any) is untouched. Re-run once the cause is fixed."
+ok "image built"
 
 # ---------------------------------------------------------------------------
-# 7. Health check (with rollback on a failed upgrade)
+# 5. Start
 # ---------------------------------------------------------------------------
-step "[7/7] Health check"
-health_url="http://127.0.0.1:$PORT/api/health"
+step "[5/6] Start the container"
+compose up -d --remove-orphans
+ok "container up"
+
+# ---------------------------------------------------------------------------
+# 6. Health check, with rollback to the previous image
+# ---------------------------------------------------------------------------
+step "[6/6] Health check"
 check_health() {
-  for _ in $(seq 1 30); do
-    curl -fsS "$health_url" >/dev/null 2>&1 && return 0
-    sleep 0.5
+  for _ in $(seq 1 60); do            # up to 60s: a Pi starts slowly
+    curl -fsS "$HEALTH_URL" >/dev/null 2>&1 && return 0
+    sleep 1
   done
   return 1
 }
-health_version() {
-  curl -fsS "$health_url" 2>/dev/null \
-    | sed -n 's/.*"version" *: *"\([^"]*\)".*/\1/p'
-}
-
-# Restore the pre-upgrade snapshot so the version we roll back to sees the
-# database it was running against.
-restore_snapshot() {
-  [ -n "$SNAP" ] && [ -f "$SNAP" ] || return 0
-  cp "$SNAP" "$DB_PATH"
-  for ext in -wal -shm; do
-    if [ -f "${SNAP}${ext}" ]; then cp "${SNAP}${ext}" "${DB_PATH}${ext}"
-    else rm -f "${DB_PATH}${ext}"; fi
-  done
-  chown "$SVC_USER":"$SVC_USER" "$DB_PATH"* 2>/dev/null || true
-}
 
 if check_health; then
-  ok "healthy ($health_url) - kundali $(health_version)"
-elif [ "$UPGRADE" -eq 1 ] && [ -n "$PREV_VENV" ] && [ -d "$PREV_VENV" ]; then
-  warn "the new version failed its health check."
-  warn "rolling back to the previous install and restoring the pre-upgrade database…"
-  stop_service
-  restore_snapshot
-  ln -sfn "$PREV_VENV" "$VENV"
-  if [ -n "$PREV_SHA" ] && [ -z "$LOCAL_CHECKOUT" ]; then
-    git_src checkout -q -B deploy "$PREV_SHA" || true
-  fi
-  start_service
+  ok "healthy ($HEALTH_URL) - kundali $(curl -fsS "$HEALTH_URL" 2>/dev/null \
+      | sed -n 's/.*"version" *: *"\([^"]*\)".*/\1/p')"
+elif [ "$ROLLBACK" -eq 1 ]; then
+  warn "the new image failed its health check - rolling back to the previous one…"
+  docker image tag "$PREV_IMAGE" "$IMAGE"
+  compose up -d --force-recreate
   if check_health; then
-    die "Upgrade failed its health check - rolled back to $( [ -n "$PREV_SHA" ] && echo "${PREV_SHA:0:12}" || echo "the previous install") with your data intact. Check: journalctl -u ${SERVICE_NAME} -n 80"
+    die "Upgrade failed its health check - rolled back to the previous image, your data is untouched${SNAP:+ (backup at $SNAP)}. Logs: docker compose -f $SRC_DIR/docker-compose.yml logs"
   fi
-  die "Upgrade AND rollback both failed health checks. Data snapshot is safe at ${SNAP:-$DB_PATH}. Inspect: journalctl -u ${SERVICE_NAME} -n 80"
+  die "Upgrade AND rollback both failed health checks.${SNAP:+ Backup is safe at $SNAP.} Logs: docker compose -f $SRC_DIR/docker-compose.yml logs"
 else
-  die "Service is not healthy. Inspect logs: journalctl -u ${SERVICE_NAME} -n 80 --no-pager"
+  die "The container is not healthy. Logs: docker compose -f $SRC_DIR/docker-compose.yml logs"
 fi
 
 # ---------------------------------------------------------------------------
@@ -399,28 +264,25 @@ fi
 # ---------------------------------------------------------------------------
 lan_ip="$(hostname -I 2>/dev/null | awk '{print $1}')"; [ -n "$lan_ip" ] || lan_ip="<this-host>"
 verb="installed"; [ "$UPGRADE" -eq 1 ] && verb="upgraded"
+url="http://$lan_ip:$PORT"
+[ "$BIND" = "127.0.0.1" ] && url="http://127.0.0.1:$PORT"
 
 cat <<DONE
 
 ${C_GREEN}kundali-web $verb and running.${C_OFF}
 
-  Open it:     http://$lan_ip:$PORT      (http://localhost:$PORT on this machine)
-  Database:    $DB_PATH
+  Open it:     $url
+  On a phone:  open that URL, then "Add to Home Screen"
+  Data:        docker volume ${PROJECT}_kundali-data (survives rebuilds)
   Backups:     $BACKUP_DIR
-  Virtualenv:  $VENV -> $NEW_VENV
-  Source:      $SRC_DIR
-  Upgrade:     re-run this script - it swaps code in, backs up data, self-heals.
+  Upgrade:     re-run this command - it backs up first and rolls back on failure
 
-  Manage the service:
-    systemctl status  ${SERVICE_NAME}
-    systemctl restart ${SERVICE_NAME}
-    journalctl -u ${SERVICE_NAME} -f
-
-  The CLI is installed too:
-    $VENV/bin/kundali-report --date 1993-11-26 --time 22:03 --tz Asia/Kolkata \\
-        --lat 14.6197 --lon 74.8354 --out /tmp/chart.pdf
+  Manage it:
+    docker compose -f $SRC_DIR/docker-compose.yml ps
+    docker compose -f $SRC_DIR/docker-compose.yml logs -f
+    docker compose -f $SRC_DIR/docker-compose.yml restart
 ${C_DIM}
-  No auth by design - keep this on a trusted network (LAN / Tailscale / VPN).
-  For HTTPS and "Add to Home Screen" off-LAN, front it with Tailscale Serve or
-  a reverse proxy (Caddy/nginx). See DEPLOYMENT.md.${C_OFF}
+  It restarts with the Pi on its own (restart: unless-stopped + Docker
+  enabled at boot). No authentication by design - keep it on a trusted
+  network (LAN / Tailscale / VPN). See DEPLOYMENT.md.${C_OFF}
 DONE

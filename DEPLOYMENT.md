@@ -6,9 +6,20 @@ phone on the network shares one database.
 
 ## Docker (the default)
 
-The app in a container, all of its state in one volume. This is how the
-README quick start starts it, and the path to prefer unless you have a
-reason not to run containers on the host.
+One command, on a Raspberry Pi or any Debian/Ubuntu host, x86 or ARM:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/chinmay28/vedic-astrology/main/scripts/quickstart.sh | sudo bash
+```
+
+From a fresh machine it installs Docker if missing, clones to
+`/opt/kundali/src`, builds the image, starts the container, and health-checks
+it. Re-run the same command to upgrade — it backs the database up to the host
+first, builds while the old container keeps serving, and rolls back to the
+previous image if the new one fails its health check.
+
+Already have a checkout? `sudo ./scripts/quickstart.sh` builds *that* tree
+instead of cloning a second copy. Or drive Compose yourself:
 
 ```bash
 docker compose up -d          # builds on first run
@@ -16,13 +27,34 @@ docker compose logs -f
 docker compose down           # stops it; the volume - and your charts - survive
 ```
 
-Or without Compose:
+Where it listens comes from the environment, so the compose file needs no
+editing (the installer writes these into `.env` beside it):
 
 ```bash
-docker build -t kundali-web .
-docker run -d --name kundali-web --restart unless-stopped \
-    -p 127.0.0.1:8777:8777 -v kundali-data:/data kundali-web
+KUNDALI_BIND=0.0.0.0 KUNDALI_PORT=8777 docker compose up -d
 ```
+
+### Installer options
+
+```bash
+curl -fsSL …/scripts/quickstart.sh | sudo KUNDALI_BIND=127.0.0.1 PORT=9090 bash
+```
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `KUNDALI_BIND` | `0.0.0.0` | Address to publish on; `127.0.0.1` keeps it on the host |
+| `PORT` | `8777` | Published port |
+| `KUNDALI_REPO` | this repo | Repo to clone (a fork works) |
+| `KUNDALI_REF` | `main` | Branch, tag or commit to build |
+| `KUNDALI_PREFIX` | `/opt/kundali` | Where the source is cloned |
+| `BACKUP_DIR` | `/var/lib/kundali/backups` | Host directory for pre-upgrade backups |
+| `BACKUP_KEEP` | `10` | Backups kept |
+| `INSTALL_DOCKER` | `auto` | `never` to fail instead of installing Docker |
+
+On a Pi the first build takes roughly 5-15 minutes (longer on a Pi 3, or on
+32-bit Pi OS where pyswisseph compiles from source); later runs reuse
+Docker's layer cache. The installer also adds the invoking user to the
+`docker` group, so `docker` works without `sudo` after the next login.
 
 **What "isolated" means here.** The container writes to exactly two places:
 the `kundali-data` volume (`/data/kundali.sqlite` and its WAL sidecars) and
@@ -40,9 +72,11 @@ the host is touched, and the compose file makes that structural:
 The image is two-stage: the builder compiles wheels, the runtime carries
 only Python, libcairo and the virtualenv.
 
-**Upgrades.** `git pull && docker compose up -d --build`. The volume is not
-part of the image, so rebuilding, re-tagging or removing the container never
-touches the database.
+**Upgrades.** Re-run the quickstart command, or by hand:
+`git pull && docker compose up -d --build`. The volume is not part of the
+image, so rebuilding, re-tagging or removing the container never touches the
+database. The installer keeps the previous image tagged `kundali-web:prev`
+and falls back to it if the new one is unhealthy.
 
 **Backups.** The web app's own Data screen (JSON / CSV / SQLite download)
 works exactly as it does anywhere else. From the host:
@@ -67,11 +101,21 @@ docker run --rm -v kundali-data:/data -v "$PWD:/in" alpine \
 **Bind mount instead of a volume?** Replace the `volumes:` entry with a host
 path and give it to the container's uid: `sudo chown -R 10001:10001 /srv/kundali`.
 
+**Volume naming.** The compose file pins the project name to `kundali`, so
+the volume is `kundali_kundali-data` wherever the checkout lives. If you
+started the stack before that was pinned, your data is in
+`<directory>_kundali-data`; move it over once with:
+
+```bash
+docker run --rm -v vedic-astrology_kundali-data:/from -v kundali_kundali-data:/to \
+    kundali-web:local sh -c 'cp -a /from/. /to/'
+```
+
 To have systemd own the container's lifecycle rather than Docker's restart
 policy, `deploy/kundali-web-docker.service` runs the compose stack at boot.
 
-Everything below — the systemd install, its upgrade and rollback machinery,
-backups and exposure — is the non-container path.
+Everything below — the systemd install, its upgrade and rollback machinery —
+is the non-container path.
 
 ## Install as a systemd service
 
@@ -79,15 +123,15 @@ Prefer this when you would rather not run Docker on the host: it installs
 the app straight onto the machine, supervised by systemd.
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/chinmay28/vedic-astrology/main/scripts/quickstart.sh | sudo bash
+curl -fsSL https://raw.githubusercontent.com/chinmay28/vedic-astrology/main/scripts/install-systemd.sh | sudo bash
 ```
 
 That clones the repo, installs it into a private virtualenv, creates a
 dedicated system user, writes a hardened systemd unit and starts it. Open
 `http://<host>:8777`.
 
-Already have a checkout? `sudo ./scripts/quickstart.sh` installs *that*
-tree instead of cloning a second copy.
+Already have a checkout? `sudo ./scripts/install-systemd.sh` installs
+*that* tree instead of cloning a second copy.
 
 **Re-run the same command to upgrade.** It is idempotent and data-safe;
 see [Upgrades and rollback](#upgrades-and-rollback).
@@ -97,7 +141,7 @@ see [Upgrades and rollback](#upgrades-and-rollback).
 Everything is an environment variable, so a one-liner stays a one-liner:
 
 ```bash
-curl -fsSL …/scripts/quickstart.sh | sudo PORT=9090 KUNDALI_REF=v1.4.0 bash
+curl -fsSL …/scripts/install-systemd.sh | sudo PORT=9090 KUNDALI_REF=v1.4.0 bash
 ```
 
 | Variable | Default | Meaning |
