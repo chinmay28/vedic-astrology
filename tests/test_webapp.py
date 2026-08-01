@@ -250,7 +250,7 @@ def chart_id(base):
 def test_health_and_static_shell(base):
     status, _, body = call(base, "/api/health")
     assert status == 200 and json.loads(body)["ok"] is True
-    for path, needle in [("/", b"<title>Kundali</title>"),
+    for path, needle in [("/", b"<title>Jataka</title>"),
                          ("/app.js", b"service"),
                          ("/app.css", b"--gold"),
                          ("/manifest.webmanifest", b"standalone"),

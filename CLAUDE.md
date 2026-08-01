@@ -81,6 +81,15 @@ The package is a layered pipeline: ephemeris → pure computation → rendering.
   Swiss Ephemeris' sidereal mode is process-global — a concurrent
   lahiri request would otherwise poison a raman one. Keep new entry
   points inside that lock.
+- **The web app is called Jataka; the package and commands are not.**
+  "Jataka" is the display name only - `<title>`, the manifest, the app
+  bar, the PDF/HTML document title. The package (`kundali`), the console
+  scripts (`kundali-report`, `kundali-web`), the database filename, the
+  install paths, the Docker volume and the systemd unit deliberately keep
+  the `kundali` name, because deployed instances depend on them. Do not
+  "finish" the rename without a migration path in both installers.
+  Sanskrit terms inside a report ("Janma Kundali") are domain vocabulary,
+  not the product name - leave them alone.
 - Branding lives in `webapp/static/`: `icon.svg` is the app mark (also
   rasterised for the PWA icons), `dev-badge*.png` the developer badge.
   The version shown in the app header comes from `/api/health`, i.e.

@@ -25,8 +25,8 @@ database, so historical DST (e.g. US Pacific time) is applied correctly.
 
 ## Quick start
 
-**The web app — one command.** On a Raspberry Pi, or any Debian/Ubuntu
-machine, x86 or ARM:
+**Jataka, the web app — one command.** On a Raspberry Pi, or any
+Debian/Ubuntu machine, x86 or ARM:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/chinmay28/vedic-astrology/main/scripts/quickstart.sh | sudo bash
@@ -130,11 +130,13 @@ ephemeris contract has drifted.
 `--format pdf` (default), `--format html` (single self-contained file,
 dark theme, inline SVG charts), or `--format both`.
 
-## Web app (mobile friendly)
+## Jataka — the web app (mobile friendly)
 
-A phone-first GUI over the same computation pipeline — one small server
-owns a single SQLite file, and every device on the network is a client of
-it. One command installs it (see [Quick start](#quick-start)).
+**Jataka** is the phone-first GUI over the same computation pipeline —
+one small server owns a single SQLite file, and every device on the
+network is a client of it. One command installs it (see
+[Quick start](#quick-start)). It installs to the home screen under that
+name; the package and commands keep the `kundali-` prefix.
 
 The server itself is the `kundali-web` console script, which is what the
 container runs; [DEPLOYMENT.md](DEPLOYMENT.md) covers running it directly

@@ -1,8 +1,9 @@
-# Deploying kundali-web
+# Deploying Jataka (kundali-web)
 
-`kundali-web` is the mobile web GUI (see README). This is how to run it as
-a service on a Linux box — a home server, a NAS, a Raspberry Pi — so every
-phone on the network shares one database.
+**Jataka** is the mobile web GUI (see README); `kundali-web` is the
+command that serves it. This is how to run it as a service on a Linux
+box — a home server, a NAS, a Raspberry Pi — so every phone on the
+network shares one database.
 
 ## Docker (the default)
 

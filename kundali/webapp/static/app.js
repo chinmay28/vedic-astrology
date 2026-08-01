@@ -131,7 +131,7 @@ function setTitle(t) { $('#title').textContent = t; }
 
 /* ---------------------------------------------------------------- home */
 async function home() {
-  setTitle('Kundali');
+  setTitle('Jataka');
   const action = $('#bar-action');
   action.hidden = false;
   action.textContent = '⋯';
@@ -566,9 +566,10 @@ async function dataView() {
         ['Version', 'kundali-report v' + health.version],
         ['Authentication', 'none — keep this on a trusted network']]))
     + card('About', `
-      <p class="small muted">Jyotish computation with the Swiss Ephemeris —
-         sidereal, whole-sign houses, mean node. The web app, the PDF and the
-         HTML report all run the same code.</p>
+      <p class="small"><b style="color:var(--gold)">Jataka</b> — Jyotish
+         computation with the Swiss Ephemeris,
+         sidereal, whole-sign houses, mean node. The web app, the PDF and
+         the HTML report all run the same code.</p>
       <p class="small">Built by <b style="color:var(--gold)">CM Hegday</b>
          · 0x434d<br>
          <a href="https://github.com/chinmay28" target="_blank" rel="noopener">github.com/chinmay28</a>
