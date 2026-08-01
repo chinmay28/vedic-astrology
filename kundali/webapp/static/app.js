@@ -562,8 +562,17 @@ async function dataView() {
          matching an existing birth identity are updated, not duplicated.</p>
       <input id="d-file" type="file" accept="application/json,.json">`)
     + card('Server', kv([['Database', health.db],
-        ['Saved charts', health.charts], ['Version', health.version],
+        ['Saved charts', health.charts],
+        ['Version', 'kundali-report v' + health.version],
         ['Authentication', 'none — keep this on a trusted network']]))
+    + card('About', `
+      <p class="small muted">Jyotish computation with the Swiss Ephemeris —
+         sidereal, whole-sign houses, mean node. The web app, the PDF and the
+         HTML report all run the same code.</p>
+      <p class="small">Built by <b style="color:var(--gold)">CM Hegday</b>
+         · 0x434d<br>
+         <a href="https://github.com/chinmay28" target="_blank" rel="noopener">github.com/chinmay28</a>
+         · <a href="https://github.com/chinmay28/vedic-astrology" target="_blank" rel="noopener">source</a></p>`)
     + card('Install on your phone', `
       <p class="small muted">Add this to your home screen and it opens
          full-screen, works offline for charts you have already viewed, and
@@ -599,8 +608,36 @@ async function dataView() {
   };
 }
 
+/* --------------------------------------------------- brand & dev badge */
+async function showVersion() {
+  try {
+    const h = await api('/api/health');
+    $('#version').textContent = 'v' + h.version;
+  } catch (e) { /* offline: leave it blank rather than lie */ }
+}
+
+/* Tap the badge for the maker's mark; it clears itself after a beat. */
+function wireDevBadge() {
+  const flash = $('#dev-flash');
+  let timer = null;
+  const close = () => { flash.hidden = true; clearTimeout(timer); };
+  $('#dev-badge').onclick = () => {
+    flash.hidden = false;
+    clearTimeout(timer);
+    timer = setTimeout(close, 3000);
+  };
+  flash.onclick = (ev) => {
+    if (ev.target.tagName !== 'A') close();     // let the link through
+  };
+  window.addEventListener('keydown', (ev) => {
+    if (ev.key === 'Escape' && !flash.hidden) close();
+  });
+}
+
 /* ---------------------------------------------------------------- boot */
 $('#back').onclick = () => history.back();
+wireDevBadge();
+showVersion();
 window.addEventListener('hashchange', route);
 window.addEventListener('beforeinstallprompt', (e) => {
   e.preventDefault();

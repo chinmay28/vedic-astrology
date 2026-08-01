@@ -307,7 +307,8 @@ Handler.ROUTES = [
     ("GET", re.compile(r"/"), "index"),
     ("GET", re.compile(r"/index\.html"), "index"),
     ("GET", re.compile(r"/(app\.js|app\.css|sw\.js|icon\.svg"
-                       r"|manifest\.webmanifest)"), "asset"),
+                       r"|manifest\.webmanifest|dev-badge\.png"
+                       r"|dev-badge-full\.png)"), "asset"),
     ("GET", re.compile(r"/icons/(\d+)\.png"), "icon"),
     ("GET", re.compile(r"/api/health"), "health"),
     ("GET", re.compile(r"/api/timezones"), "timezones"),

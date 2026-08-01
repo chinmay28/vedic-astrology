@@ -1,10 +1,10 @@
 /* sw.js - app shell offline, API network-first with a stale fallback.
    Downloads (reports, exports) are never cached: they are large and
    always recomputed server-side. */
-const SHELL = 'kundali-shell-v1';
+const SHELL = 'kundali-shell-v2';
 const DATA = 'kundali-data-v1';
 const ASSETS = ['/', '/app.css', '/app.js', '/icon.svg',
-                '/manifest.webmanifest'];
+                '/manifest.webmanifest', '/dev-badge.png'];
 
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(SHELL).then((c) => c.addAll(ASSETS))

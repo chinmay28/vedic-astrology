@@ -286,6 +286,12 @@ def build_html(natal: Chart, varsha_years: list[int], out_path: str, asof=None) 
              f'{natal.ayanamsa_name.title()} ayanamsa, whole-sign houses, mean '
              'node). Positions are exact astronomy; interpretations follow the '
              'classical Jyotish tradition and are offered for study.</p>')
+    from . import __version__
+    h.append('<p class="foot" style="font-style:normal">'
+             f'kundali-report v{__version__} &middot; '
+             '<a href="https://github.com/chinmay28/vedic-astrology" '
+             'style="color:#c9a063">github.com/chinmay28/vedic-astrology</a>'
+             '</p>')
     h.append("</div></body></html>")
     with open(out_path, "w") as f:
         f.write("\n".join(h))

@@ -470,7 +470,10 @@ def build_report(natal: Chart, varsha_years: list[int], out_path: str,
         canvas.saveState()
         canvas.setFont("Helvetica", 7.5)
         canvas.setFillColor(GREY)
-        canvas.drawString(17*mm, 9*mm, f"{natal.name} - {natal.ayanamsa_name.title()} ayanamsa")
+        from . import __version__
+        canvas.drawString(17*mm, 9*mm,
+                          f"{natal.name} - {natal.ayanamsa_name.title()} "
+                          f"ayanamsa - kundali-report v{__version__}")
         canvas.drawRightString(A4[0] - 17*mm, 9*mm, f"Page {doc.page}")
         canvas.restoreState()
 
