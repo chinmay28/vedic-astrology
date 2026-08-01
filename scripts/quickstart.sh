@@ -13,13 +13,23 @@
 #
 # Re-run the same command to upgrade. It is non-disruptive and data-safe:
 #
-#   * The database is backed up to the host before anything is rebuilt (via
-#     the app's own export endpoint, so the WAL is folded in), and the
-#     newest $BACKUP_KEEP copies are kept.
+#   * If the rebuilt image is identical to the one already running, nothing
+#     is stopped, restarted or backed up - the re-run is a no-op.
 #   * The image is built while the old container keeps serving. A failed
 #     build leaves the running version alone.
+#   * The new image is smoke-tested in a throwaway container on a scratch
+#     volume BEFORE the live one is touched, so an image that cannot boot
+#     never causes an outage at all.
+#   * Only then is the database backed up to the host (via the app's own
+#     export endpoint, so the WAL is folded in; newest $BACKUP_KEEP kept)
+#     and the container recreated. The old container gets SIGTERM and
+#     drains its in-flight requests first, so a PDF someone is downloading
+#     finishes instead of arriving truncated.
 #   * The previous image is retagged :prev first, so if the new one fails
-#     its health check we roll back to it and restart.
+#     its health check against the real data we roll back to it and restart.
+#
+# The swap itself is a container recreate: expect a few seconds of downtime
+# on an actual upgrade, and none when nothing changed.
 #
 # On a Pi, expect the first build to take a while (roughly 5-15 minutes on a
 # Pi 4; longer on a Pi 3 or 32-bit OS, where pyswisseph compiles from
@@ -187,9 +197,65 @@ ENV
 ok "wrote $SRC_DIR/.env (bind $BIND, port $PORT)"
 
 # ---------------------------------------------------------------------------
-# 3. Back up the database before touching anything
+# 3. Build (the old container keeps serving meanwhile)
 # ---------------------------------------------------------------------------
-step "[3/6] Backup"
+step "[3/6] Build the image"
+ROLLBACK=0
+RUNNING_IMAGE="$(docker inspect --format '{{.Image}}' kundali-web 2>/dev/null || true)"
+if docker image inspect "$IMAGE" >/dev/null 2>&1; then
+  docker image tag "$IMAGE" "$PREV_IMAGE" && ROLLBACK=1
+fi
+log "building - first time on a Pi this can take 5-15 minutes…"
+compose build \
+  || die "the image build failed. The running container (if any) is untouched. Re-run once the cause is fixed."
+NEW_IMAGE_ID="$(docker image inspect --format '{{.Id}}' "$IMAGE" 2>/dev/null || true)"
+ok "image built"
+
+# ---------------------------------------------------------------------------
+# 4. Nothing to do? Then do nothing. Otherwise smoke-test the new image in a
+#    throwaway container before the live one is touched.
+# ---------------------------------------------------------------------------
+step "[4/6] Pre-flight"
+
+if [ -n "$RUNNING_IMAGE" ] && [ "$RUNNING_IMAGE" = "$NEW_IMAGE_ID" ] \
+   && curl -fsS --max-time 5 "$HEALTH_URL" >/dev/null 2>&1; then
+  ok "already running this exact image and healthy - nothing to restart"
+  lan_ip="$(hostname -I 2>/dev/null | awk '{print $1}')"; [ -n "$lan_ip" ] || lan_ip="<this-host>"
+  url="http://$lan_ip:$PORT"; [ "$BIND" = "127.0.0.1" ] && url="http://127.0.0.1:$PORT"
+  printf '\n%skundali-web is already up to date and running.%s\n\n  Open it: %s\n\n' \
+    "$C_GREEN" "$C_OFF" "$url"
+  exit 0
+fi
+
+# Boot the new image against a scratch volume on a throwaway port. If it
+# cannot serve, we abort here - before stopping anything the user is using.
+preflight() {
+  local name="kundali-preflight-$$" vol="kundali-preflight-$$" hostport ok_=0
+  docker run -d --name "$name" -v "$vol:/data" -p 127.0.0.1::8777 "$IMAGE" \
+    >/dev/null 2>&1 || return 1
+  hostport="$(docker port "$name" 8777/tcp 2>/dev/null | head -1 | sed 's/.*://')"
+  if [ -n "$hostport" ]; then
+    for _ in $(seq 1 45); do
+      curl -fsS "http://127.0.0.1:$hostport/api/health" >/dev/null 2>&1 \
+        && { ok_=1; break; }
+      sleep 1
+    done
+  fi
+  docker rm -f "$name" >/dev/null 2>&1 || true
+  docker volume rm "$vol" >/dev/null 2>&1 || true
+  [ "$ok_" -eq 1 ]
+}
+
+if preflight; then
+  ok "the new image boots and serves"
+else
+  die "the new image failed to start in a throwaway container - NOT swapping it in. Your running app is untouched. Logs: docker logs kundali-preflight-$$ (if it survived), or re-run once fixed."
+fi
+
+# ---------------------------------------------------------------------------
+# 5. Back up, then swap
+# ---------------------------------------------------------------------------
+step "[5/6] Backup and swap"
 SNAP=""
 if [ "$UPGRADE" -eq 1 ]; then
   install -d -m 750 "$BACKUP_DIR"
@@ -212,25 +278,10 @@ else
   ok "first install - nothing to back up yet"
 fi
 
-# ---------------------------------------------------------------------------
-# 4. Build (the old container keeps serving meanwhile)
-# ---------------------------------------------------------------------------
-step "[4/6] Build the image"
-ROLLBACK=0
-if docker image inspect "$IMAGE" >/dev/null 2>&1; then
-  docker image tag "$IMAGE" "$PREV_IMAGE" && ROLLBACK=1
-fi
-log "building - first time on a Pi this can take 5-15 minutes…"
-compose build \
-  || die "the image build failed. The running container (if any) is untouched. Re-run once the cause is fixed."
-ok "image built"
-
-# ---------------------------------------------------------------------------
-# 5. Start
-# ---------------------------------------------------------------------------
-step "[5/6] Start the container"
+# The old container is sent SIGTERM and drains its in-flight requests
+# (stop_grace_period in docker-compose.yml) before the new one takes over.
 compose up -d --remove-orphans
-ok "container up"
+ok "container swapped in"
 
 # ---------------------------------------------------------------------------
 # 6. Health check, with rollback to the previous image

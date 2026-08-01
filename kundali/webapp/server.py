@@ -17,8 +17,11 @@ import argparse
 import json
 import mimetypes
 import re
+import signal
 import socket
 import sys
+import threading
+import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlparse
@@ -30,6 +33,25 @@ from .store import Store, default_db_path, parse_years, validate
 STATIC = Path(__file__).parent / "static"
 MAX_BODY = 8 << 20          # 8 MB: enough for a full backup restore
 ICON_SIZES = (180, 192, 512)
+DRAIN_TIMEOUT = 25          # seconds to let in-flight requests finish
+
+# In-flight request count, so a shutdown can drain rather than cut a
+# response in half. A PDF takes seconds to render; an upgrade that kills
+# it mid-download hands the user a truncated file.
+_inflight = 0
+_inflight_cv = threading.Condition()
+
+
+def drain(timeout: float = DRAIN_TIMEOUT) -> bool:
+    """Wait for in-flight requests to finish. True if none are left."""
+    deadline = time.monotonic() + timeout
+    with _inflight_cv:
+        while _inflight:
+            left = deadline - time.monotonic()
+            if left <= 0:
+                return False
+            _inflight_cv.wait(min(0.25, left))
+        return True
 
 
 def _json_default(o):
@@ -92,6 +114,17 @@ class Handler(BaseHTTPRequestHandler):
     ROUTES: list[tuple[str, re.Pattern, str]] = []
 
     def _dispatch(self) -> None:
+        global _inflight
+        with _inflight_cv:
+            _inflight += 1
+        try:
+            self._route()
+        finally:
+            with _inflight_cv:
+                _inflight -= 1
+                _inflight_cv.notify_all()
+
+    def _route(self) -> None:
         parsed = urlparse(self.path)
         path = unquote(parsed.path)
         self.query = parse_qs(parsed.query)
@@ -327,11 +360,27 @@ def run(host: str = "127.0.0.1", port: int = 8777,
         if hint:
             print(f"reachable on this network at {hint}")
         print("no authentication - keep this on a trusted network")
+    # SIGTERM is what `docker stop` and `systemctl restart` send, so an
+    # upgrade must not cut a running PDF render in half: stop accepting
+    # new connections, drain what is in flight, then exit cleanly.
+    def _stop(signum, _frame):
+        name = signal.Signals(signum).name
+        print(f"\n{name}: draining in-flight requests…", flush=True)
+        threading.Thread(target=httpd.shutdown, daemon=True).start()
+
+    for sig in (signal.SIGTERM, signal.SIGINT):
+        signal.signal(sig, _stop)
+
     try:
         httpd.serve_forever()
-    except KeyboardInterrupt:
-        print("\nstopped")
+    except KeyboardInterrupt:            # no handler installed (embedded use)
+        pass
     finally:
+        if drain():
+            print("stopped cleanly")
+        else:
+            print(f"stopped with requests still running after "
+                  f"{DRAIN_TIMEOUT}s")
         httpd.server_close()
     return 0
 

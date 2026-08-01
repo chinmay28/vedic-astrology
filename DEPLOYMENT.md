@@ -72,11 +72,30 @@ the host is touched, and the compose file makes that structural:
 The image is two-stage: the builder compiles wheels, the runtime carries
 only Python, libcairo and the virtualenv.
 
-**Upgrades.** Re-run the quickstart command, or by hand:
-`git pull && docker compose up -d --build`. The volume is not part of the
-image, so rebuilding, re-tagging or removing the container never touches the
-database. The installer keeps the previous image tagged `kundali-web:prev`
-and falls back to it if the new one is unhealthy.
+**Upgrades.** Re-run the quickstart command. What it does, in order:
+
+1. **Builds** the new image while the old container keeps serving. A failed
+   build changes nothing.
+2. **Stops early if nothing changed.** If the rebuilt image is byte-identical
+   to the one already running and the app is healthy, the container is not
+   touched at all - no restart, no backup, no downtime. Re-running the
+   installer "just to be sure" costs nothing.
+3. **Smoke-tests the new image** in a throwaway container on a scratch
+   volume. An image that cannot boot is rejected here, before anything
+   you are using is stopped - a broken build causes no outage at all.
+4. **Backs up** the database to the host through `/api/export/kundali.sqlite`
+   (WAL folded in), keeping the newest `BACKUP_KEEP` copies.
+5. **Recreates** the container. The old one gets SIGTERM and drains: the
+   server stops accepting connections and finishes what is in flight, so a
+   PDF someone is downloading completes instead of arriving truncated
+   (`stop_grace_period: 30s` covers a render that is nearly done).
+6. **Health-checks** the new container against the real data, and rolls back
+   to `kundali-web:prev` with the pre-upgrade database if it fails.
+
+So: zero downtime when nothing changed, none when a build is broken, and a
+few seconds - one container recreate - on a genuine upgrade. The volume is
+not part of the image, so rebuilding, re-tagging or removing the container
+never touches the database.
 
 **Backups.** The web app's own Data screen (JSON / CSV / SQLite download)
 works exactly as it does anywhere else. From the host:
@@ -187,6 +206,10 @@ systemctl status  kundali-web
 systemctl restart kundali-web
 journalctl -u kundali-web -f
 ```
+
+`restart` and `stop` are graceful: systemd sends SIGTERM, and the server
+stops accepting new connections and finishes in-flight requests (up to 25
+seconds) before exiting, so an in-progress PDF download is not cut off.
 
 The CLI is installed alongside it:
 

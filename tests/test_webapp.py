@@ -7,6 +7,8 @@ the PDF would not.
 """
 import json
 import pathlib
+import socket
+import sys
 import threading
 import urllib.error
 import urllib.request
@@ -163,7 +165,58 @@ def test_csv_exports(tmp_path):
     assert sum(1 for r in dasha if r.startswith("Mahadasha")) == 9
 
 
+# ------------------------------------------------ graceful shutdown
+
+def test_sigterm_drains_in_flight_requests(tmp_path):
+    """`docker stop` and `systemctl restart` send SIGTERM. An upgrade must
+    not cut a PDF render in half and hand the user a truncated file."""
+    import signal
+    import subprocess
+    import time
+    from urllib.error import URLError
+
+    db = tmp_path / "drain.sqlite"
+    port = _free_port()
+    proc = subprocess.Popen(
+        [sys.executable, "-m", "kundali.webapp", "--host", "127.0.0.1",
+         "--port", str(port), "--db", str(db)],
+        stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+    base = f"http://127.0.0.1:{port}"
+    try:
+        for _ in range(100):                       # wait for the port
+            try:
+                call(base, "/api/health")
+                break
+            except URLError:
+                time.sleep(0.1)
+        call(base, "/api/charts", "POST", C3)
+
+        result = {}
+        thread = threading.Thread(
+            target=lambda: result.update(zip(
+                ("status", "headers", "body"),
+                call(base, "/api/charts/1/report.pdf?varsha=2026,2027"))))
+        thread.start()
+        time.sleep(1.5)                            # render is under way
+        proc.send_signal(signal.SIGTERM)
+        thread.join(timeout=60)
+
+        assert result.get("status") == 200, "in-flight request was cut off"
+        assert result["body"].startswith(b"%PDF")
+        assert proc.wait(timeout=30) == 0
+        assert "draining" in (proc.stdout.read() or "")
+    finally:
+        if proc.poll() is None:
+            proc.kill()
+
+
 # ------------------------------------------------------------ HTTP layer
+
+def _free_port() -> int:
+    with socket.socket() as s:
+        s.bind(("127.0.0.1", 0))
+        return s.getsockname()[1]
+
 
 @pytest.fixture(scope="module")
 def base(tmp_path_factory):

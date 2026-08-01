@@ -25,6 +25,9 @@ services:
     image: kundali-web:local
     container_name: kundali-web
     restart: unless-stopped
+    # The server drains in-flight requests on SIGTERM (a PDF render takes
+    # seconds); give it room to finish before Docker resorts to SIGKILL.
+    stop_grace_period: 30s
     ports:
       # Loopback by default. Set KUNDALI_BIND=0.0.0.0 to reach it from other
       # devices - there is no authentication, so mean it when you do.
