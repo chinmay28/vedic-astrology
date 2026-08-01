@@ -1,0 +1,31 @@
+# Optional: run the Docker Compose stack at boot, supervised by systemd.
+#
+# Only needed if you want systemd to own the lifecycle. Compose's own
+# `restart: unless-stopped` already brings the container back after a reboot,
+# as long as the Docker daemon starts at boot.
+#
+#   sudo cp deploy/kundali-web-docker.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now kundali-web-docker
+#
+# Adjust WorkingDirectory to wherever the checkout (and docker-compose.yml)
+# lives on this host.
+#
+[Unit]
+Description=kundali-web (Docker Compose)
+Documentation=https://github.com/chinmay28/vedic-astrology
+Requires=docker.service
+After=docker.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=true
+WorkingDirectory=/opt/kundali/src
+ExecStart=/usr/bin/docker compose up -d --remove-orphans
+ExecStop=/usr/bin/docker compose down
+ExecReload=/usr/bin/docker compose up -d --build
+TimeoutStartSec=0
+
+[Install]
+WantedBy=multi-user.target

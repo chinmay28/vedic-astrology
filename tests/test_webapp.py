@@ -6,6 +6,7 @@ computation modules fails here too - the GUI must never show numbers
 the PDF would not.
 """
 import json
+import pathlib
 import threading
 import urllib.error
 import urllib.request
@@ -203,6 +204,19 @@ def test_health_and_static_shell(base):
                          ("/sw.js", b"kundali-shell")]:
         status, _, body = call(base, path)
         assert status == 200 and needle in body, path
+
+
+def test_static_assets_are_packaged():
+    """The container and any wheel install serve the PWA out of package
+    data, not out of a source checkout - so the glob must stay declared."""
+    tomllib = pytest.importorskip("tomllib")
+    root = pathlib.Path(__file__).resolve().parent.parent
+    cfg = tomllib.loads((root / "pyproject.toml").read_text())
+    globs = cfg["tool"]["setuptools"]["package-data"]["kundali.webapp"]
+    assert any(g.startswith("static/") for g in globs)
+    shipped = {p.name for p in (root / "kundali" / "webapp" / "static").iterdir()}
+    assert {"index.html", "app.js", "app.css", "sw.js", "icon.svg",
+            "manifest.webmanifest"} <= shipped
 
 
 def test_pwa_icons_are_rendered(base):

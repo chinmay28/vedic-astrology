@@ -106,8 +106,19 @@ curl -fsSL https://raw.githubusercontent.com/chinmay28/vedic-astrology/main/scri
 
 Re-run it any time to upgrade: it snapshots the database first, builds the
 new virtualenv beside the running one, and rolls back automatically —
-code *and* data — if the new version fails its health check. See
-[DEPLOYMENT.md](DEPLOYMENT.md) for paths, options and HTTPS.
+code *and* data — if the new version fails its health check.
+
+Prefer a container? Everything the app writes lives in one volume:
+
+```bash
+docker compose up -d          # http://127.0.0.1:8777
+```
+
+The container runs unprivileged with a read-only filesystem, so `/data`
+(your charts) and `/tmp` (scratch space while a PDF renders) are the only
+writable paths — rebuilding or removing the container never touches the
+database. See [DEPLOYMENT.md](DEPLOYMENT.md) for both paths: options,
+backups, upgrades and HTTPS.
 
 Open it on a phone and *Add to Home Screen* — it is an installable PWA
 (standalone window, cached app shell, previously viewed charts readable
