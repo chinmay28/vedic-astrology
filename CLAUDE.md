@@ -17,6 +17,7 @@ pip install -e .[dev]        # deps: pyswisseph, reportlab, cairosvg; dev adds p
 python -m pytest tests/      # golden-value test suite
 python -m kundali --date 1993-11-26 --time 22:03 --tz Asia/Kolkata \
     --lat 14.6197 --lon 74.8354 --ayanamsa raman --out /tmp/chart.pdf
+python -m kundali.webapp --host 0.0.0.0   # mobile web GUI, port 8777
 ```
 
 `cairosvg` needs the cairo system library (`apt install libcairo2`).
@@ -47,6 +48,11 @@ The package is a layered pipeline: ephemeris → pure computation → rendering.
   when adding sections).
 - `cli.py` — argument parsing and `cast_natal()`, the single chart
   construction path for the whole tool. `__main__.py` delegates to it.
+- `webapp/` — mobile-first web GUI, stdlib only, layered the same way:
+  `store.py` (saved records in one SQLite file + input validation),
+  `service.py` (record → JSON payload / report bytes), `server.py`
+  (`ThreadingHTTPServer`, JSON API + static shell), `static/` (no build
+  step: hand-written HTML/CSS/JS, service worker, manifest).
 
 ## Invariants and conventions
 
@@ -60,6 +66,20 @@ The package is a layered pipeline: ephemeris → pure computation → rendering.
   asserted on every run.
 - Timezones are IANA names resolved via the standard library, so
   historical DST is applied correctly — never hand-roll UTC offsets.
+- **The web app is a renderer, not a second implementation.** Every
+  number it shows comes from the modules above; downloads call
+  `report.py` / `html_report.py`. When adding a report section, add it
+  to the PDF, the HTML report and `webapp/service.summary()` together.
+- `webapp/service.py` holds `_LOCK` around every computation because
+  Swiss Ephemeris' sidereal mode is process-global — a concurrent
+  lahiri request would otherwise poison a raman one. Keep new entry
+  points inside that lock.
+- The web app adds no dependencies (stdlib `http.server` + `sqlite3`;
+  `cairosvg`, already required, rasterises the PWA icons) and no
+  frontend build step. Keep it that way.
+- The web app has no authentication on purpose (trusted-network tool,
+  binds 127.0.0.1 by default). Don't bolt on half of an auth system;
+  if it ever needs one, it needs the whole thing.
 - Coordinates are explicit CLI inputs by design; do not add geocoding.
 - **Deliberately out of scope** (see README "Scope, honestly stated"):
   Shadbala, divisional charts beyond what varga.py implements, full
