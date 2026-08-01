@@ -84,6 +84,46 @@ ephemeris contract has drifted.
 `--format pdf` (default), `--format html` (single self-contained file,
 dark theme, inline SVG charts), or `--format both`.
 
+## Web app (mobile friendly)
+
+`kundali-web` serves a phone-first GUI over the same computation
+pipeline — one small server owns a single SQLite file, and every device
+on the network is a client of it.
+
+```bash
+kundali-web                          # http://127.0.0.1:8777
+kundali-web --host 0.0.0.0 --port 8777 --db ~/kundali.sqlite
+```
+
+Or without installing: `python -m kundali.webapp`.
+
+Open it on a phone and *Add to Home Screen* — it is an installable PWA
+(standalone window, cached app shell, previously viewed charts readable
+offline). No build step: the frontend is hand-written HTML/CSS/JS
+served straight from `kundali/webapp/static/`.
+
+| In the GUI | What you get |
+|---|---|
+| Chart list | Saved birth records, searchable; add/edit/delete |
+| Snapshot | Lagna, rashi, nakshatra, input verification, panchanga, avakahada, yogas |
+| Charts | North / South / D-9 diagrams (the same SVG geometry the PDF uses), positions, drishti, Bhav Chalit |
+| Dasha | Running MD/AD/PD with progress, rule-based navigation guidance, full Vimshottari timeline, varshaphala |
+| Strength | SAV bar chart with the 30/24-bindu thresholds, BAV table, Vimshopaka, Shodashavarga, Maitri, Avasthas |
+| Shani | Sade Sati severity grading, current/next phase with Murti, lifetime table |
+| Report | **PDF download**, single-file HTML, JSON, positions CSV, dasha CSV — with an as-of date and varsha years you pick on the page |
+| Data | Backups as JSON / CSV / the raw `kundali.sqlite`, plus JSON restore |
+
+Reports downloaded from the GUI are produced by `report.py` and
+`html_report.py` — the same code the CLI runs, so a PDF from the phone
+is the PDF from the terminal.
+
+**No authentication, by design.** Like the tracker app this borrows its
+shape from, it is meant for a trusted network (LAN, VPN, tailnet);
+anyone who can reach the port can read and edit every chart. The
+default bind is `127.0.0.1` — pass `--host 0.0.0.0` deliberately.
+Coordinates stay an explicit input; the "use this device's location"
+button reads the phone's own GPS and geocodes nothing.
+
 ## Scope, honestly stated
 
 The tool automates the *computation* and the *classical rule layer*
