@@ -16,8 +16,16 @@
 <body>
 <header class="bar" id="bar">
   <button class="icon-btn" id="back" hidden aria-label="Back">&#8592;</button>
-  <h1 id="title">Kundali</h1>
+  <img class="brand-logo" src="/icon.svg" alt="" aria-hidden="true">
+  <div class="brand-text">
+    <h1 id="title">Kundali</h1>
+    <span class="brand-version" id="version" aria-label="App version"></span>
+  </div>
   <button class="icon-btn" id="bar-action" hidden></button>
+  <button class="dev-btn" id="dev-badge" title="Built by CM Hegday &middot; 0x434d"
+          aria-label="Show the developer badge">
+    <img src="/dev-badge.png" alt="" aria-hidden="true">
+  </button>
 </header>
 
 <main id="view" aria-live="polite"></main>
@@ -25,6 +33,14 @@
 <nav class="tabbar" id="tabbar" hidden></nav>
 
 <div class="toast" id="toast" hidden></div>
+<div class="dev-flash" id="dev-flash" hidden>
+  <div class="dev-flash__lockup">
+    <img class="dev-flash__logo" src="/dev-badge-full.png"
+         alt="Built by CM Hegday &mdash; 0x434d">
+    <a class="dev-flash__handle" href="https://github.com/chinmay28"
+       target="_blank" rel="noopener">github.com/chinmay28</a>
+  </div>
+</div>
 <div class="overlay" id="overlay" hidden>
   <div class="spinner"></div>
   <p id="overlay-text">Working…</p>

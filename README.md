@@ -158,7 +158,9 @@ served straight from `kundali/webapp/static/`.
 
 Reports downloaded from the GUI are produced by `report.py` and
 `html_report.py` — the same code the CLI runs, so a PDF from the phone
-is the PDF from the terminal.
+is the PDF from the terminal. The running version is shown in the app
+header, on the Data screen and in the footer of every report, so it is
+always clear which build produced a document.
 
 **No authentication, by design.** Like the tracker app this borrows its
 shape from, it is meant for a trusted network (LAN, VPN, tailnet);
@@ -167,6 +169,13 @@ quickstart publishes on `0.0.0.0` because a phone has to reach it —
 install with `KUNDALI_BIND=127.0.0.1` if you would rather it stayed on
 the machine. Coordinates stay an explicit input; the "use this device's
 location" button reads the phone's own GPS and geocodes nothing.
+
+## Credits
+
+Built by CM Hegday · 0x434d — [github.com/chinmay28](https://github.com/chinmay28).
+The developer badge in the app header is the same mark used in
+[CountRoster](https://github.com/chinmay28/CountRoster); tap it to see it
+full screen.
 
 ## Scope, honestly stated
 

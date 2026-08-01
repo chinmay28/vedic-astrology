@@ -81,6 +81,12 @@ The package is a layered pipeline: ephemeris → pure computation → rendering.
   Swiss Ephemeris' sidereal mode is process-global — a concurrent
   lahiri request would otherwise poison a raman one. Keep new entry
   points inside that lock.
+- Branding lives in `webapp/static/`: `icon.svg` is the app mark (also
+  rasterised for the PWA icons), `dev-badge*.png` the developer badge.
+  The version shown in the app header comes from `/api/health`, i.e.
+  `kundali.__version__` — the same string stamped into the PDF footer and
+  the HTML report, so a document always names the build that made it.
+  Bump it in `kundali/__init__.py` and `pyproject.toml` together.
 - The web app adds no dependencies (stdlib `http.server` + `sqlite3`;
   `cairosvg`, already required, rasterises the PWA icons) and no
   frontend build step. Keep it that way.

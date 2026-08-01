@@ -272,6 +272,28 @@ def test_static_assets_are_packaged():
             "manifest.webmanifest"} <= shipped
 
 
+def test_brand_and_developer_assets_are_served(base):
+    """The header logo, the version and the developer badge come from the
+    package, so a wheel or container install has them too."""
+    for path, magic in [("/icon.svg", b"<svg"),
+                        ("/dev-badge.png", b"\x89PNG"),
+                        ("/dev-badge-full.png", b"\x89PNG")]:
+        status, headers, body = call(base, path)
+        assert status == 200 and body.startswith(magic), path
+    shell = call(base, "/")[2]
+    assert b'id="version"' in shell
+    assert b"/dev-badge.png" in shell
+    assert b"github.com/chinmay28" in shell
+    assert json.loads(call(base, "/api/health")[2])["version"]
+
+
+def test_reports_carry_the_version(tmp_path):
+    from kundali import __version__
+    html = service.html_bytes(C3, []).decode()
+    assert f"kundali-report v{__version__}" in html
+    assert "github.com/chinmay28/vedic-astrology" in html
+
+
 def test_pwa_icons_are_rendered(base):
     status, headers, body = call(base, "/icons/192.png")
     assert status == 200 and headers["Content-Type"] == "image/png"
