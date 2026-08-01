@@ -18,7 +18,8 @@ python -m pytest tests/      # golden-value test suite
 python -m kundali --date 1993-11-26 --time 22:03 --tz Asia/Kolkata \
     --lat 14.6197 --lon 74.8354 --ayanamsa raman --out /tmp/chart.pdf
 python -m kundali.webapp --host 0.0.0.0   # mobile web GUI, port 8777
-sudo ./scripts/quickstart.sh             # install as a systemd service
+sudo ./scripts/quickstart.sh             # install as a Docker service (Pi-friendly)
+sudo ./scripts/install-systemd.sh        # ...or straight onto the host, under systemd
 ```
 
 `cairosvg` needs the cairo system library (`apt install libcairo2`).
@@ -78,18 +79,26 @@ The package is a layered pipeline: ephemeris → pure computation → rendering.
 - The web app adds no dependencies (stdlib `http.server` + `sqlite3`;
   `cairosvg`, already required, rasterises the PWA icons) and no
   frontend build step. Keep it that way.
-- `scripts/quickstart.sh` is the systemd installer (idempotent, backs up
-  the database before an upgrade, health-checks and self-heals). It must
-  keep working when piped from curl *and* run from a checkout; a venv is
-  never moved (console scripts hardcode their path) — the
-  `$PREFIX/venv` symlink is what swaps. `deploy/kundali-web.service` is
-  the reference unit and DEPLOYMENT.md the operator doc; keep the three
-  in sync when the unit or the paths change.
+- Two installers, both idempotent, both backing up the database before an
+  upgrade and rolling back on a failed health check. Each must keep
+  working when piped from curl *and* when run from a checkout:
+  `scripts/quickstart.sh` (the headline one-liner: installs Docker if
+  missing, builds the image, runs Compose; keeps the previous image as
+  `kundali-web:prev` to roll back to) and `scripts/install-systemd.sh`
+  (the non-container path: a venv per build under `$PREFIX/venvs` with
+  the `$PREFIX/venv` symlink swapping between them, because a venv can
+  never be moved — console scripts hardcode their path).
+  `deploy/*.service` are the reference units and DEPLOYMENT.md the
+  operator doc; keep them in sync when paths or the unit change.
 - `Dockerfile` / `docker-compose.yml` are the container path: two stages,
   unprivileged uid 10001, read-only rootfs, and **all** state in `/data`
   (plus `/tmp` for PDF scratch). Keep that true — a feature that writes
   anywhere else breaks `read_only: true`. The venv is built and copied at
-  the same path (`/opt/venv`) for the reason above.
+  the same path (`/opt/venv`) for the reason above. The compose project
+  name is pinned (`name: kundali`) so the data volume is
+  `kundali_kundali-data` regardless of the checkout directory; the
+  published address comes from `KUNDALI_BIND`/`KUNDALI_PORT` (a `.env`
+  the installer writes), not from edits to the compose file.
 - The web app has no authentication on purpose (trusted-network tool,
   binds 127.0.0.1 by default). Don't bolt on half of an auth system;
   if it ever needs one, it needs the whole thing.

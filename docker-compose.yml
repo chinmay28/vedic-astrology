@@ -10,6 +10,14 @@
 #
 #   volumes:
 #     - /srv/kundali:/data       # then: sudo chown -R 10001:10001 /srv/kundali
+#
+# Where it listens is the one thing worth changing per host, so it comes from
+# the environment (scripts/quickstart.sh writes a .env beside this file):
+#
+#   KUNDALI_BIND=0.0.0.0 KUNDALI_PORT=8777 docker compose up -d
+
+name: kundali          # fixed project name, so the volume is kundali_kundali-data
+                       # wherever the checkout happens to live
 
 services:
   kundali-web:
@@ -18,9 +26,9 @@ services:
     container_name: kundali-web
     restart: unless-stopped
     ports:
-      # 127.0.0.1 only. Drop the prefix to reach it from other devices on the
-      # network - there is no authentication, so mean it when you do.
-      - "127.0.0.1:8777:8777"
+      # Loopback by default. Set KUNDALI_BIND=0.0.0.0 to reach it from other
+      # devices - there is no authentication, so mean it when you do.
+      - "${KUNDALI_BIND:-127.0.0.1}:${KUNDALI_PORT:-8777}:8777"
     volumes:
       - kundali-data:/data
     environment:

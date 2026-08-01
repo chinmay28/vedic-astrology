@@ -13,3 +13,4 @@ scripts
 *.pdf
 *.html
 *.sqlite
+.env

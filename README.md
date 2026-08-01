@@ -25,12 +25,34 @@ database, so historical DST (e.g. US Pacific time) is applied correctly.
 
 ## Quick start
 
-Two ways in: a one-off report from the command line, or the web app in a
-container. Both produce the same numbers — one computation pipeline
-underneath.
+**The web app — one command.** On a Raspberry Pi, or any Debian/Ubuntu
+machine, x86 or ARM:
 
-**A PDF, right now.** Needs Python 3.10+ and the cairo system library
-(`apt install libcairo2`; preinstalled on most desktops):
+```bash
+curl -fsSL https://raw.githubusercontent.com/chinmay28/vedic-astrology/main/scripts/quickstart.sh | sudo bash
+```
+
+Starting from a fresh Pi that is all of it: the script installs Docker if
+it is missing, fetches the source, builds the image, starts the container
+and prints the URL to open. Your charts live in a Docker volume, so
+rebuilds and upgrades never touch them, and the container comes back with
+the Pi on its own.
+
+Open the URL on a phone and *Add to Home Screen* — it is an installable
+PWA. First build on a Pi takes roughly 5–15 minutes; later runs are much
+quicker.
+
+**Re-run the same command to upgrade.** It backs the database up to the
+host first, builds while the old container keeps serving, and rolls back
+to the previous image if the new one fails its health check.
+
+It publishes on `0.0.0.0:8777` so your phone can reach it. There is no
+authentication — keep it on a network you trust, or install it with
+`KUNDALI_BIND=127.0.0.1` and put a proxy in front. Options, backups and
+HTTPS: [DEPLOYMENT.md](DEPLOYMENT.md).
+
+**Just want a PDF?** No Docker needed — Python 3.10+ and the cairo system
+library (`apt install libcairo2`):
 
 ```bash
 git clone https://github.com/chinmay28/vedic-astrology.git
@@ -43,26 +65,7 @@ kundali-report --name "Chart 3" \
   --out chart3.pdf
 ```
 
-**The mobile web app.** Docker, from the same checkout:
-
-```bash
-docker compose up -d           # http://127.0.0.1:8777
-```
-
-That is the whole install: it builds the image, starts the server
-unprivileged with a read-only filesystem, and keeps every chart you save
-in the `kundali-data` volume — so rebuilding or removing the container
-never touches your data. Publish it on `0.0.0.0` to open it from a phone
-(see [DEPLOYMENT.md](DEPLOYMENT.md); there is no authentication, so mean
-it when you do). Upgrades:
-
-```bash
-git pull && docker compose up -d --build
-```
-
-Backups, HTTPS, running it without Docker, and installing it as a systemd
-service instead: [DEPLOYMENT.md](DEPLOYMENT.md). How to read the report
-once you have one: [USER_GUIDE.md](USER_GUIDE.md).
+How to read the report once you have one: [USER_GUIDE.md](USER_GUIDE.md).
 
 ## Install
 
@@ -129,8 +132,7 @@ dark theme, inline SVG charts), or `--format both`.
 
 A phone-first GUI over the same computation pipeline — one small server
 owns a single SQLite file, and every device on the network is a client of
-it. Start it with `docker compose up -d` (see
-[Quick start](#quick-start)).
+it. One command installs it (see [Quick start](#quick-start)).
 
 The server itself is the `kundali-web` console script, which is what the
 container runs; [DEPLOYMENT.md](DEPLOYMENT.md) covers running it directly
@@ -159,9 +161,10 @@ is the PDF from the terminal.
 **No authentication, by design.** Like the tracker app this borrows its
 shape from, it is meant for a trusted network (LAN, VPN, tailnet);
 anyone who can reach the port can read and edit every chart. The
-default bind is `127.0.0.1` — pass `--host 0.0.0.0` deliberately.
-Coordinates stay an explicit input; the "use this device's location"
-button reads the phone's own GPS and geocodes nothing.
+quickstart publishes on `0.0.0.0` because a phone has to reach it —
+install with `KUNDALI_BIND=127.0.0.1` if you would rather it stayed on
+the machine. Coordinates stay an explicit input; the "use this device's
+location" button reads the phone's own GPS and geocodes nothing.
 
 ## Scope, honestly stated
 
