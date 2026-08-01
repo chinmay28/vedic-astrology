@@ -18,6 +18,7 @@ python -m pytest tests/      # golden-value test suite
 python -m kundali --date 1993-11-26 --time 22:03 --tz Asia/Kolkata \
     --lat 14.6197 --lon 74.8354 --ayanamsa raman --out /tmp/chart.pdf
 python -m kundali.webapp --host 0.0.0.0   # mobile web GUI, port 8777
+sudo ./scripts/quickstart.sh             # install as a systemd service
 ```
 
 `cairosvg` needs the cairo system library (`apt install libcairo2`).
@@ -77,6 +78,13 @@ The package is a layered pipeline: ephemeris → pure computation → rendering.
 - The web app adds no dependencies (stdlib `http.server` + `sqlite3`;
   `cairosvg`, already required, rasterises the PWA icons) and no
   frontend build step. Keep it that way.
+- `scripts/quickstart.sh` is the systemd installer (idempotent, backs up
+  the database before an upgrade, health-checks and self-heals). It must
+  keep working when piped from curl *and* run from a checkout; a venv is
+  never moved (console scripts hardcode their path) — the
+  `$PREFIX/venv` symlink is what swaps. `deploy/kundali-web.service` is
+  the reference unit and DEPLOYMENT.md the operator doc; keep the three
+  in sync when the unit or the paths change.
 - The web app has no authentication on purpose (trusted-network tool,
   binds 127.0.0.1 by default). Don't bolt on half of an auth system;
   if it ever needs one, it needs the whole thing.

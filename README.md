@@ -97,6 +97,18 @@ kundali-web --host 0.0.0.0 --port 8777 --db ~/kundali.sqlite
 
 Or without installing: `python -m kundali.webapp`.
 
+To keep it running on a home server, install it as a hardened systemd
+service with one command:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/chinmay28/vedic-astrology/main/scripts/quickstart.sh | sudo bash
+```
+
+Re-run it any time to upgrade: it snapshots the database first, builds the
+new virtualenv beside the running one, and rolls back automatically —
+code *and* data — if the new version fails its health check. See
+[DEPLOYMENT.md](DEPLOYMENT.md) for paths, options and HTTPS.
+
 Open it on a phone and *Add to Home Screen* — it is an installable PWA
 (standalone window, cached app shell, previously viewed charts readable
 offline). No build step: the frontend is hand-written HTML/CSS/JS

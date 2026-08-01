@@ -1,0 +1,46 @@
+# Reference unit for kundali-web.
+#
+# scripts/quickstart.sh writes this file for you with the paths it chose.
+# Use this copy only if you are installing by hand: adjust the paths, then
+#
+#   sudo cp deploy/kundali-web.service /etc/systemd/system/
+#   sudo systemctl daemon-reload && sudo systemctl enable --now kundali-web
+#
+[Unit]
+Description=kundali-web - Jyotish chart reports (JSON API + PWA)
+Documentation=https://github.com/chinmay28/vedic-astrology
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=kundali
+Group=kundali
+WorkingDirectory=/var/lib/kundali
+ExecStart=/opt/kundali/venv/bin/kundali-web --host 0.0.0.0 --port 8777 --db /var/lib/kundali/kundali.sqlite
+Environment=KUNDALI_DB=/var/lib/kundali/kundali.sqlite
+Environment=PYTHONUNBUFFERED=1
+Restart=on-failure
+RestartSec=3
+
+# Hardening - safe on a trusted LAN, defensive if exposure ever widens.
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectClock=true
+ProtectControlGroups=true
+ProtectKernelLogs=true
+ProtectKernelModules=true
+ProtectKernelTunables=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+RestrictNamespaces=true
+RestrictSUIDSGID=true
+LockPersonality=true
+SystemCallArchitectures=native
+UMask=0077
+ReadWritePaths=/var/lib/kundali
+
+[Install]
+WantedBy=multi-user.target
