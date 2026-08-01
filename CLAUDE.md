@@ -85,6 +85,11 @@ The package is a layered pipeline: ephemeris → pure computation → rendering.
   `$PREFIX/venv` symlink is what swaps. `deploy/kundali-web.service` is
   the reference unit and DEPLOYMENT.md the operator doc; keep the three
   in sync when the unit or the paths change.
+- `Dockerfile` / `docker-compose.yml` are the container path: two stages,
+  unprivileged uid 10001, read-only rootfs, and **all** state in `/data`
+  (plus `/tmp` for PDF scratch). Keep that true — a feature that writes
+  anywhere else breaks `read_only: true`. The venv is built and copied at
+  the same path (`/opt/venv`) for the reason above.
 - The web app has no authentication on purpose (trusted-network tool,
   binds 127.0.0.1 by default). Don't bolt on half of an auth system;
   if it ever needs one, it needs the whole thing.

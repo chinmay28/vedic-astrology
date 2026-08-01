@@ -1,0 +1,38 @@
+# kundali-web, isolated: the only writable state is the kundali-data volume.
+#
+#   docker compose up -d          start (builds on first run)
+#   docker compose logs -f        follow the log
+#   docker compose down           stop; the volume - and your charts - survive
+#
+# Data lives in the named volume, not in the container, so `docker compose
+# down`, image rebuilds and upgrades never touch it. To keep the database on
+# the host instead, replace the volume line with a bind mount:
+#
+#   volumes:
+#     - /srv/kundali:/data       # then: sudo chown -R 10001:10001 /srv/kundali
+
+services:
+  kundali-web:
+    build: .
+    image: kundali-web:local
+    container_name: kundali-web
+    restart: unless-stopped
+    ports:
+      # 127.0.0.1 only. Drop the prefix to reach it from other devices on the
+      # network - there is no authentication, so mean it when you do.
+      - "127.0.0.1:8777:8777"
+    volumes:
+      - kundali-data:/data
+    environment:
+      - TZ=UTC          # only affects log timestamps; chart timezones are per-record
+    # Hardening, matching the systemd unit in deploy/.
+    read_only: true     # the rootfs is immutable; /data and /tmp are the exceptions
+    tmpfs:
+      - /tmp:size=256m,mode=1777   # scratch space while a PDF renders
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+
+volumes:
+  kundali-data:

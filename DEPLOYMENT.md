@@ -100,6 +100,71 @@ Re-running the script performs, in order:
 Data is never re-initialised: the database lives outside the source tree,
 so cloning, pulling and rebuilding cannot touch it.
 
+## Run it in Docker
+
+The alternative to the systemd install: the app in a container, all of its
+state in one volume.
+
+```bash
+docker compose up -d          # builds on first run
+docker compose logs -f
+docker compose down           # stops it; the volume - and your charts - survive
+```
+
+Or without Compose:
+
+```bash
+docker build -t kundali-web .
+docker run -d --name kundali-web --restart unless-stopped \
+    -p 127.0.0.1:8777:8777 -v kundali-data:/data kundali-web
+```
+
+**What "isolated" means here.** The container writes to exactly two places:
+the `kundali-data` volume (`/data/kundali.sqlite` and its WAL sidecars) and
+`/tmp`, which holds scratch files only while a PDF renders. Nothing else on
+the host is touched, and the compose file makes that structural:
+
+- `read_only: true` — the container filesystem is immutable; `/data` (the
+  volume) and `/tmp` (a 256 MB tmpfs) are the only writable mounts.
+- runs as uid `10001`, never root, with `cap_drop: ALL` and
+  `no-new-privileges`.
+- `127.0.0.1:8777:8777` — published to the loopback interface only. Drop the
+  `127.0.0.1:` prefix to reach it from your phone; there is still no
+  authentication, so do that on a network you trust.
+
+The image is two-stage: the builder compiles wheels, the runtime carries
+only Python, libcairo and the virtualenv.
+
+**Upgrades.** `git pull && docker compose up -d --build`. The volume is not
+part of the image, so rebuilding, re-tagging or removing the container never
+touches the database.
+
+**Backups.** The web app's own Data screen (JSON / CSV / SQLite download)
+works exactly as it does anywhere else. From the host:
+
+```bash
+docker compose exec kundali-web \
+    python -c "import urllib.request,sys; sys.stdout.buffer.write(
+    urllib.request.urlopen('http://127.0.0.1:8777/api/export/kundali.sqlite').read())" \
+    > kundali-backup.sqlite
+```
+
+That takes a proper SQLite backup with the WAL folded in, which copying the
+file out of a running container does not.
+
+**Moving an existing database in.** Stop the container, then:
+
+```bash
+docker run --rm -v kundali-data:/data -v "$PWD:/in" alpine \
+    sh -c 'cp /in/kundali.sqlite /data/ && chown 10001:10001 /data/kundali.sqlite'
+```
+
+**Bind mount instead of a volume?** Replace the `volumes:` entry with a host
+path and give it to the container's uid: `sudo chown -R 10001:10001 /srv/kundali`.
+
+To have systemd own the container's lifecycle rather than Docker's restart
+policy, `deploy/kundali-web-docker.service` runs the compose stack at boot.
+
 ## Backups
 
 The installer's snapshots cover upgrades. For routine backups, use the web
