@@ -23,6 +23,57 @@ Computation: Swiss Ephemeris, sidereal zodiac (Raman or Lahiri ayanamsa),
 whole-sign houses, mean lunar node. Timezone handling uses the IANA
 database, so historical DST (e.g. US Pacific time) is applied correctly.
 
+## Quick start
+
+Pick the one that matches what you want — a file, a phone, or a server.
+All of them produce the same numbers; there is one computation pipeline
+underneath.
+
+**A PDF, right now.** Needs Python 3.10+ and the cairo system library
+(`apt install libcairo2`; preinstalled on most desktops):
+
+```bash
+git clone https://github.com/chinmay28/vedic-astrology.git
+cd vedic-astrology
+pip install .
+
+kundali-report --name "Chart 3" \
+  --date 1993-11-26 --time 22:03 --tz Asia/Kolkata \
+  --lat 14.6197 --lon 74.8354 --place "Sirsi, Karnataka, India" \
+  --out chart3.pdf
+```
+
+**The mobile web app, on this machine.** Same install, then:
+
+```bash
+kundali-web                    # http://127.0.0.1:8777
+```
+
+Add `--host 0.0.0.0` to open it from your phone on the same network.
+
+**As a service on a home server** — Ubuntu / Debian / Raspberry Pi OS, one
+command, installs a hardened systemd unit and starts it:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/chinmay28/vedic-astrology/main/scripts/quickstart.sh | sudo bash
+```
+
+It creates a dedicated user, installs into a private virtualenv, and keeps
+your charts in `/var/lib/kundali`. Re-run it any time to upgrade: it
+snapshots the database first and rolls back automatically — code *and*
+data — if the new version fails its health check.
+
+**In a container**, if you would rather the data stayed in a volume — from
+a checkout, since the image is built locally:
+
+```bash
+docker compose up -d           # http://127.0.0.1:8777
+```
+
+Options, backups, HTTPS and uninstall for both server paths:
+[DEPLOYMENT.md](DEPLOYMENT.md). How to read the report once you have one:
+[USER_GUIDE.md](USER_GUIDE.md).
+
 ## Install
 
 ```bash
@@ -97,28 +148,9 @@ kundali-web --host 0.0.0.0 --port 8777 --db ~/kundali.sqlite
 
 Or without installing: `python -m kundali.webapp`.
 
-To keep it running on a home server, install it as a hardened systemd
-service with one command:
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/chinmay28/vedic-astrology/main/scripts/quickstart.sh | sudo bash
-```
-
-Re-run it any time to upgrade: it snapshots the database first, builds the
-new virtualenv beside the running one, and rolls back automatically —
-code *and* data — if the new version fails its health check.
-
-Prefer a container? Everything the app writes lives in one volume:
-
-```bash
-docker compose up -d          # http://127.0.0.1:8777
-```
-
-The container runs unprivileged with a read-only filesystem, so `/data`
-(your charts) and `/tmp` (scratch space while a PDF renders) are the only
-writable paths — rebuilding or removing the container never touches the
-database. See [DEPLOYMENT.md](DEPLOYMENT.md) for both paths: options,
-backups, upgrades and HTTPS.
+To keep it running — systemd or Docker — see [Quick start](#quick-start)
+above and [DEPLOYMENT.md](DEPLOYMENT.md) for the details: upgrades with
+automatic rollback, backups, and putting HTTPS in front of it.
 
 Open it on a phone and *Add to Home Screen* — it is an installable PWA
 (standalone window, cached app shell, previously viewed charts readable
