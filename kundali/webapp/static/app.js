@@ -864,6 +864,20 @@ function tabDasha(s) {
         [`${a.lord}-${a.sub}`, a.from, a.to]))}
     </details>`).join('');
 
+  const eras = s.mahadasha_guidance.map((g) => {
+    const meta = [`House ${g.house}`, g.sign]
+      .concat(g.dignity && g.dignity !== '-' ? [g.dignity] : [])
+      .concat(g.score ? [`Vimshopaka ${g.score}/20`] : []);
+    return `
+    <details${g.status === 'running' ? ' open' : ''}>
+      <summary>${esc(g.lord)} · ${esc(g.from)} → ${esc(g.to)}${
+        g.status === 'running' ? ' · running' : ''}</summary>
+      <p class="small muted">${esc(meta.join(' · '))}</p>
+      <p class="small muted">${esc(g.timing)}</p>
+      <p>${esc(g.text)}</p>
+    </details>`;
+  }).join('');
+
   const varsha = s.varsha.length ? card('Tajika varshaphala',
     s.varsha.map((v) => `
       <h3>${v.year} · age ${v.age}</h3>
@@ -886,6 +900,7 @@ function tabDasha(s) {
           g.score ? ` · Vimshopaka ${g.score}/20` : ''}</p>
         <p>${esc(g.text)}</p>`).join(''))
     + card('Vimshottari timeline', timeline + hint(s.guidance.dasha))
+    + card('Navigating each Mahadasha', eras + hint(s.guidance.dashatimeline))
     + varsha;
 }
 

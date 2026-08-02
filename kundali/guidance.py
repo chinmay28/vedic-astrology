@@ -62,6 +62,17 @@ GUIDANCE: dict[str, str] = {
         "read a period lord through its NATAL condition - house, sign, "
         "dignity, aspects. Dates inherit every input sensitivity: if the "
         "Moon is near a nakshatra edge, treat all dates as +/- months."),
+    "dashatimeline": (
+        "The same reading applied to every era of the timeline above, one "
+        "entry per Mahadasha, because a period delivers what its lord can "
+        "deliver: the lord's natal house sets the themes, its dignity and "
+        "Vimshopaka set how cleanly they arrive, and the aspects on it say "
+        "whether the era runs supervised or raw. Read the past eras "
+        "backwards - they are a check on whether the chart describes the "
+        "life so far - and the coming ones as ground to prepare, not to "
+        "act on yet. Node eras (Rahu, Ketu) have no dignity of their own "
+        "and are read through their house and their dispositor. Dates "
+        "carry the same birth-time sensitivity as the timeline itself."),
     "d9": (
         "The Navamsa is the chart of marriage and of maturation: dignity "
         "gained here strengthens a weak D-1 placement with age, dignity "
