@@ -4,7 +4,8 @@
 date, time, and place: North + South Indian diagrams, positions with
 dignities (incl. moolatrikona), panchanga and avakahada birth constants,
 yogas, whole-sign aspects, Vimshottari dasha to pratyantar level with
-navigation guidance for every mahadasha of the cycle,
+navigation guidance for every mahadasha of the cycle, a week-ahead
+gochara reading (day by day from the natal Moon),
 Navamsa (D-9) with vargottama, Ashtakavarga (BAV/SAV), a lifetime
 Sade Sati / Kantaka / Ashtama Shani table, Tajika varshaphala annual
 charts with Mudda dasha, the full Shodashavarga (16 divisionals) with
@@ -156,7 +157,7 @@ served straight from `kundali/webapp/static/`.
 | Places | Saved coordinates, searchable; pick one on the chart form instead of re-typing a birthplace |
 | Snapshot | Lagna, rashi, nakshatra, input verification, panchanga, avakahada, yogas |
 | Charts | North / South / D-9 diagrams (the same SVG geometry the PDF uses), positions, drishti, Bhav Chalit |
-| Dasha | Running MD/AD/PD with progress, rule-based navigation guidance, full Vimshottari timeline, per-mahadasha navigation for every era of the cycle, varshaphala |
+| Dasha | The week ahead (gochara, day by day — folded away by default, with week-stepping arrows), running MD/AD/PD with progress, rule-based navigation guidance, full Vimshottari timeline, per-mahadasha navigation for every era of the cycle, varshaphala |
 | Strength | SAV bar chart with the 30/24-bindu thresholds, BAV table, Vimshopaka, Shodashavarga, Maitri, Avasthas |
 | Shani | Sade Sati severity grading, current/next phase with Murti, lifetime table |
 | Report | **PDF download**, single-file HTML, JSON, positions CSV, dasha CSV — with an as-of date and varsha years you pick on the page |

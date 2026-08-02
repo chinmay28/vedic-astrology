@@ -332,6 +332,16 @@ table.kv td:last-child { white-space: normal; }
 details { border-top: 1px solid var(--line); padding: 8px 0; }
 details summary { cursor: pointer; color: var(--gold); font-size: 14px; padding: 4px 0; }
 
+/* The week's themes/cautions: prose bullets, not a data table. */
+.week-list { margin: 6px 0; padding-left: 20px; }
+.week-list li { margin: 5px 0; font-size: 14px; }
+
+/* Day rows read at a glance on a phone: spent days recede, today is
+   marked by the rail rather than by a column the table cannot spare. */
+.week-days tr.past td { opacity: .5; }
+.week-days tr.today td:first-child { box-shadow: inset 3px 0 0 var(--saffron); }
+.week-days tr.today td { color: var(--ink); }
+
 /* ------------------------------------------------------ toast/overlay */
 .toast {
   position: absolute; left: 50%; transform: translateX(-50%); z-index: 40;

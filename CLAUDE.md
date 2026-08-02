@@ -38,7 +38,11 @@ The package is a layered pipeline: ephemeris → pure computation → rendering.
   natural friendships) and the `Chart` dataclass. Pure; no ephemeris calls.
 - Pure computation over `Chart`/longitudes, one concern per module:
   `dasha.py` (Vimshottari + Mudda), `dasha_now.py` (running MD/AD/PD as of
-  a date), `aspects.py` (whole-sign drishti), `yogas.py`, `varga.py`
+  a date, plus the per-mahadasha navigation guidance the whole timeline
+  is read with), `weekly.py` (one Monday-to-Sunday week as classical
+  gochara: transits and the day-by-day Moon counted from the natal Moon,
+  weighted by SAV, laid over the running dasha),
+  `aspects.py` (whole-sign drishti), `yogas.py`, `varga.py`
   (D-9 / Shodashavarga + Vimshopaka), `maitri.py` (panchadha friendship),
   `avastha.py`, `ashtakavarga.py` (BAV/SAV + reductions), `bhav.py`
   (Bhav Chalit shift list), `panchanga.py`, `sadesati.py`,

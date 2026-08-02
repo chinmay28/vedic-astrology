@@ -37,6 +37,7 @@ from ..sadesati import (IMPACTS, NAVIGATION, PHASES, current_status,
                         lifetime_table, murti, severity_profile)
 from ..varga import navamsa_chart, shodashavarga_table, vargottama, vimshopaka
 from ..varshaphal import cast_varsha
+from ..weekly import week_outlook
 
 _LOCK = threading.RLock()
 DAY = 365.25
@@ -250,6 +251,7 @@ def summary(rec: dict, asof: str | None = None) -> dict:
                             "occupants": occ[h],
                             "aspected_by": inbound.get(h, [])}
                            for h in range(1, 13)]},
+            "week": week_outlook(natal, asof_dt, today=datetime.now()),
             "dasha_now": _dasha_now(natal, jd_now),
             "mahadashas": [{**_period(m, natal.tz, jd_now),
                             "antardashas": [_period(a, natal.tz, jd_now)

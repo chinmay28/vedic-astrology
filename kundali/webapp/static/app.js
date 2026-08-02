@@ -6,7 +6,8 @@
 const $ = (s) => document.querySelector(s);
 const view = $('#view');
 const state = { charts: [], places: [], summary: null, tab: 'snapshot',
-                tzs: null, diagram: 'north', installer: null, health: null };
+                tzs: null, diagram: 'north', installer: null, health: null,
+                weekOpen: false };
 
 const esc = (s) => String(s === null || s === undefined ? '' : s)
   .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
@@ -774,6 +775,7 @@ function renderTab() {
                strength: tabStrength, shani: tabShani, report: tabReport };
   view.innerHTML = (fn[state.tab] || tabSnapshot)(s);
   if (state.tab === 'charts') wireDiagrams();
+  if (state.tab === 'dasha') wireWeek(s);
   if (state.tab === 'report') wireReport(s);
 }
 
@@ -854,6 +856,67 @@ function periodCard(p) {
   </div>`;
 }
 
+const GRADE_CLASS = { favourable: 'good', quiet: '', testing: 'bad' };
+
+/* The week reads as a horoscope column, so it opens the tab - but it is
+   the most volatile thing in the report, so it stays folded until asked
+   for. */
+function weekCard(w, guide) {
+  /* The day table stays narrow enough to read on a phone; anything a
+     column cannot hold goes in the notes underneath it. */
+  const days = w.days.map((d) => `
+    <tr class="${d.when}">
+      <td>${esc(d.day.slice(0, 3))} ${esc(d.date.slice(0, 2))}</td>
+      <td>${esc(d.moon_sign.slice(0, 3))}</td>
+      <td class="num">${d.from_moon}</td>
+      <td><span class="chip ${GRADE_CLASS[d.grade]}">${esc(d.grade)}</span></td>
+    </tr>`).join('');
+  /* Only the days the grade column cannot explain by itself. */
+  const dayNotes = w.days.filter((d) => d.flags.length || d.grade === 'testing')
+    .map((d) => `<li><b>${esc(d.day.slice(0, 3))} ${esc(d.date)}</b> — ${
+      esc(d.note)}</li>`).join('');
+  const transits = table(
+    ['Graha', 'Sign', 'From Moon', 'SAV', 'Reading'],
+    w.transits.map((t) => [t.body + (t.retro ? ' (R)' : ''), t.sign,
+      t.from_moon, t.sav,
+      t.grade + (t.ingress ? ` · ${t.ingress}` : '')]), [2, 3]);
+  const list = (items) => `<ul class="week-list">${
+    items.map((x) => `<li>${esc(x)}</li>`).join('')}</ul>`;
+
+  return card('This week', `
+    <details id="week"${state.weekOpen ? ' open' : ''}>
+      <summary>${esc(w.label)}${w.current ? ' · current week' : ''}</summary>
+      <div class="row" style="margin:8px 0">
+        <button class="btn small" data-week="${esc(w.prev)}">‹ Previous</button>
+        <button class="btn small" data-week="${esc(w.next)}">Next week ›</button>
+      </div>
+      <p>${esc(w.headline)}</p>
+      <p class="small muted">${esc(w.dasha.text)}</p>
+      ${w.dasha.changes.map((c) => `<p class="hint">${esc(c.date)}: ${
+        esc(c.what)}</p>`).join('')}
+      <h3>Day by day</h3>
+      <div class="scroll-x"><table class="week-days">
+        <tr><th>Day</th><th>Moon</th><th class="num">From Moon</th>
+            <th>Grade</th></tr>${days}</table></div>
+      <ul class="week-list">${dayNotes}</ul>
+      <h3>Lean into</h3>${list(w.themes)}
+      <h3>Hold lightly</h3>${list(w.cautions)}
+      <h3>Transits this week</h3>${transits}
+      ${hint(guide)}
+    </details>`);
+}
+
+/* Stepping a week re-asks the server for that as-of date - so the fold
+   state has to survive the re-render, or every step would close it. */
+function wireWeek(s) {
+  const box = $('#week');
+  if (!box) return;
+  box.ontoggle = () => { state.weekOpen = box.open; };
+  box.querySelectorAll('[data-week]').forEach((b) => {
+    b.onclick = () => chart(s.chart.id, b.dataset.week);
+  });
+}
+
 function tabDasha(s) {
   const dn = s.dasha_now;
   const timeline = s.mahadashas.map((m) => `
@@ -889,7 +952,8 @@ function tabDasha(s) {
         v.mudda.map((p) => [p.lord, p.from, p.to]))}</details>`).join('')
     + hint(s.guidance.varshaphal)) : '';
 
-  return card(`Dasha as of ${esc(s.asof)}`,
+  return weekCard(s.week, s.guidance.week)
+    + card(`Dasha as of ${esc(s.asof)}`,
       dn.running.map(periodCard).join('')
       + dn.notes.map((n) => `<p class="hint">${esc(n)}</p>`).join('')
       + '<h3>Coming up</h3>' + dn.next.map(periodCard).join('')

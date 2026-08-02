@@ -204,9 +204,18 @@ def test_summary_dasha_and_ashtakavarga(summary):
     assert all(e["text"] and e["timing"] for e in eras)
 
 
+def test_summary_carries_the_week_of_the_asof_date(summary):
+    """asof is a Saturday - the week must still start on the Monday."""
+    w = summary["week"]
+    assert (w["from"], w["to"]) == ("27 Jul 2026", "02 Aug 2026")
+    assert len(w["days"]) == 7 and len(w["transits"]) == 8
+    assert [d["when"] for d in w["days"]].count("today") == 1
+    assert w["dasha"]["ad"] == "Moon-Mercury"
+
+
 def test_summary_carries_every_gui_section(summary):
     for key in ("verification", "panchanga", "positions", "diagrams",
-                "yogas", "aspects", "dasha_now", "mahadashas",
+                "yogas", "aspects", "week", "dasha_now", "mahadashas",
                 "mahadasha_guidance",
                 "ashtakavarga", "navamsa", "maitri", "avastha", "bhav",
                 "sadesati", "varsha", "guidance"):

@@ -58,14 +58,19 @@ NAME_SYLLABLES = [
 ]
 
 
-def tithi(chart: Chart) -> tuple[str, int, str]:
-    """(paksha, number 1-15, name)."""
-    diff = (chart.bodies["Moon"].lon - chart.bodies["Sun"].lon) % 360
+def tithi_of(sun_lon: float, moon_lon: float) -> tuple[str, int, str]:
+    """(paksha, number 1-15, name) for any Sun/Moon pair - birth or transit."""
+    diff = (moon_lon - sun_lon) % 360
     t = int(diff // 12) + 1
     paksha = "Shukla" if t <= 15 else "Krishna"
     n = t if t <= 15 else t - 15
     name = "Purnima" if t == 15 else "Amavasya" if t == 30 else TITHI_NAMES[n - 1]
     return paksha, n, name
+
+
+def tithi(chart: Chart) -> tuple[str, int, str]:
+    """(paksha, number 1-15, name) at the chart's moment."""
+    return tithi_of(chart.bodies["Sun"].lon, chart.bodies["Moon"].lon)
 
 
 def yoga(chart: Chart) -> str:

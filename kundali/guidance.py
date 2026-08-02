@@ -62,6 +62,22 @@ GUIDANCE: dict[str, str] = {
         "read a period lord through its NATAL condition - house, sign, "
         "dignity, aspects. Dates inherit every input sensitivity: if the "
         "Moon is near a nakshatra edge, treat all dates as +/- months."),
+    "week": (
+        "The week's weather, read as classical gochara: every transit is "
+        "counted from your natal MOON (not the Lagna), graded by the "
+        "standard favourable-house table, and weighted by the "
+        "Ashtakavarga bindus of the sign being transited - 30+ is strong "
+        "ground, 24 or fewer is thin. The day table follows the transit "
+        "Moon, which changes sign every 2-3 days: days it spends in the "
+        "1st, 3rd, 6th, 7th, 10th or 11th from your natal Moon carry "
+        "outward moves best, and the 8th (chandrashtama) is the day the "
+        "tradition says to keep light. All of it sits inside the running "
+        "dasha, which is the stronger signal: a favourable week inside a "
+        "strained period is a good week for that period's work, not a "
+        "different life. Vedha (the obstruction rule that cancels some "
+        "transit results) is deliberately not applied here. The week "
+        "shown is the Monday-to-Sunday one containing the as-of date - "
+        "move that date to read another week."),
     "dashatimeline": (
         "The same reading applied to every era of the timeline above, one "
         "entry per Mahadasha, because a period delivers what its lord can "

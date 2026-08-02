@@ -31,6 +31,7 @@ from .dasha import antardashas_in_window, mahadashas
 from .model import (Chart, DIG_BALA_HOUSE, HOUSE_SIGNIFICATIONS, SIGNS,
                     SIGN_LORD, dignity, nakshatra_of, sign_of)
 from .varshaphal import Varsha, cast_varsha, sade_sati_phase
+from .weekly import week_outlook
 
 NAVY = colors.HexColor("#1e2749")
 GOLD = colors.HexColor("#b06c1f")
@@ -347,6 +348,36 @@ def _varsha_section(v: Varsha, natal: Chart, work_dir: str):
     return el
 
 
+def _week_section(natal: Chart, asof):
+    w = week_outlook(natal, asof)
+    el = [Paragraph("The Week Ahead - Gochara for " + w["label"], H1),
+          _guide("week"),
+          Paragraph(w["headline"], BODY),
+          Paragraph(w["dasha"]["text"], BODY)]
+    for c in w["dasha"]["changes"]:
+        el.append(Paragraph(f"<b>{c['date']}:</b> {c['what']}.", SMALL))
+    rows = [["Day", "Moon in", "From Moon", "Grade", "What it carries"]]
+    for d in w["days"]:
+        rows.append([f"{d['day'][:3]} {d['date']}", d["moon_sign"],
+                     str(d["from_moon"]), d["grade"], d["note"]])
+    el += [Paragraph("Day by day (the transit Moon)", H3),
+           _table(rows, [52, 58, 44, 52, 305], fs=7.4)]
+    el.append(Paragraph("Lean into", H3))
+    el += [Paragraph(f"- {t}", BODY) for t in w["themes"]]
+    el.append(Paragraph("Hold lightly", H3))
+    el += [Paragraph(f"- {c}", BODY) for c in w["cautions"]]
+    rows = [["Graha", "Sign", "From Moon", "From Lagna", "SAV", "Reading"]]
+    for t in w["transits"]:
+        rows.append([t["body"] + (" (R)" if t["retro"] else ""), t["sign"],
+                     str(t["from_moon"]), str(t["from_lagna"]),
+                     str(t["sav"]),
+                     t["grade"] + (f"; {t['ingress']}" if t["ingress"] else "")])
+    el += [Paragraph("Transits this week", H3),
+           _table(rows, [60, 66, 52, 56, 34, 243], fs=7.6),
+           PageBreak()]
+    return el
+
+
 def _dasha_now_section(natal: Chart, asof):
     jd_asof = eph.jd_from_local(asof, natal.tz)
     md, ad, pad, next_ad, next_md = locate(natal, jd_asof)
@@ -458,6 +489,7 @@ def build_report(natal: Chart, varsha_years: list[int], out_path: str,
     jd_asof = eph.jd_from_local(asof, natal.tz) if asof is not None else None
     story += _natal_section(natal, work_dir, (jd_from, jd_to), jd_asof)
     if asof is not None:
+        story += _week_section(natal, asof)
         story += _dasha_now_section(natal, asof)
     story += _sadesati_section(natal, asof)
     if varshas:
