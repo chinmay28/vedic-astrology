@@ -25,7 +25,7 @@ database, so historical DST (e.g. US Pacific time) is applied correctly.
 
 ## Quick start
 
-**Jataka, the web app — one command.** On a Raspberry Pi, or any
+**Janma Kundali, the web app — one command.** On a Raspberry Pi, or any
 Debian/Ubuntu machine, x86 or ARM:
 
 ```bash
@@ -102,8 +102,10 @@ Or without installing: `python -m kundali <same flags>`.
 | `--varsha` | Calendar years for annual charts (0+ years; age-0 is skipped) |
 | `--out` | Output PDF path |
 
-Coordinates are an explicit input by design — geocoding services change,
-coordinates don't. Look them up once (any map app shows them).
+Coordinates are an explicit input on the command line by design —
+geocoding services change, coordinates don't. Look them up once (any map
+app shows them). The web app can search for a town for you and save the
+result; the CLI never calls out to anything.
 
 ## Contracts
 
@@ -130,9 +132,9 @@ ephemeris contract has drifted.
 `--format pdf` (default), `--format html` (single self-contained file,
 dark theme, inline SVG charts), or `--format both`.
 
-## Jataka — the web app (mobile friendly)
+## Janma Kundali — the web app (mobile friendly)
 
-**Jataka** is the phone-first GUI over the same computation pipeline —
+**Janma Kundali** is the phone-first GUI over the same computation pipeline —
 one small server owns a single SQLite file, and every device on the
 network is a client of it. One command installs it (see
 [Quick start](#quick-start)). It installs to the home screen under that
@@ -149,7 +151,8 @@ served straight from `kundali/webapp/static/`.
 
 | In the GUI | What you get |
 |---|---|
-| Chart list | Saved birth records, searchable; add/edit/delete |
+| Charts | Saved birth records, searchable; add/edit/delete |
+| Places | Saved coordinates, searchable; pick one on the chart form instead of re-typing a birthplace |
 | Snapshot | Lagna, rashi, nakshatra, input verification, panchanga, avakahada, yogas |
 | Charts | North / South / D-9 diagrams (the same SVG geometry the PDF uses), positions, drishti, Bhav Chalit |
 | Dasha | Running MD/AD/PD with progress, rule-based navigation guidance, full Vimshottari timeline, varshaphala |
@@ -164,13 +167,44 @@ is the PDF from the terminal. The running version is shown in the app
 header, on the Data screen and in the footer of every report, so it is
 always clear which build produced a document.
 
+**Version numbers.** `MAJOR.MINOR.PATCH`, where the patch is the
+repository's commit count — every commit is a patch release, so `1.5.42`
+is the 42nd commit on the 1.5 line, the same scheme
+[CountRoster](https://github.com/chinmay28/CountRoster) uses. `MAJOR` and
+`MINOR` are declared in `kundali/version.py` and nowhere else;
+`scripts/version.py` prints what this checkout would build as. A build
+that genuinely cannot count (a shallow clone) reports patch `0` rather
+than a number that is too small.
+
 **No authentication, by design.** Like the tracker app this borrows its
 shape from, it is meant for a trusted network (LAN, VPN, tailnet);
 anyone who can reach the port can read and edit every chart. The
 quickstart publishes on `0.0.0.0` because a phone has to reach it —
 install with `KUNDALI_BIND=127.0.0.1` if you would rather it stayed on
-the machine. Coordinates stay an explicit input; the "use this device's
-location" button reads the phone's own GPS and geocodes nothing.
+the machine. The "use this device's location" button reads the phone's own
+GPS and sends nothing anywhere.
+
+### Places, and looking a town up
+
+The **Places** tab is a coordinate book: save the birthplace once, pick it
+from the chart form ever after. Nothing is computed from a place — it only
+fills in latitude, longitude and timezone.
+
+Typing a town name is optional convenience, and the only thing in this
+project that talks to the internet. Pressing *Search* sends that name (and
+nothing else) to Open-Meteo's public GeoNames index, which answers with
+coordinates **and the IANA timezone** — the part people most often get
+wrong. It runs server-side, so phones talk only to your own server.
+
+Switch it off for an installation that must stay sealed:
+
+```bash
+KUNDALI_GEOCODER=off      # the GUI then hides the search box entirely
+```
+
+Point it at another GeoNames-shaped index by setting the same variable to
+that URL. With search off — or simply offline — every form still works:
+type the coordinates in, as the CLI always has.
 
 ## Credits
 

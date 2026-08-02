@@ -5,8 +5,8 @@
 
 const $ = (s) => document.querySelector(s);
 const view = $('#view');
-const state = { charts: [], summary: null, tab: 'snapshot', tzs: null,
-                diagram: 'north', installer: null };
+const state = { charts: [], places: [], summary: null, tab: 'snapshot',
+                tzs: null, diagram: 'north', installer: null, health: null };
 
 const esc = (s) => String(s === null || s === undefined ? '' : s)
   .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
@@ -98,6 +98,9 @@ const routes = [
   [/^$/, home],
   [/^new$/, () => form(null)],
   [/^data$/, dataView],
+  [/^places$/, placesView],
+  [/^places\/new$/, () => placeForm(null)],
+  [/^places\/(\d+)\/edit$/, (id) => editPlace(id)],
   [/^chart\/(\d+)$/, (id) => chart(id)],
   [/^chart\/(\d+)\/edit$/, (id) => editChart(id)]
 ];
@@ -129,14 +132,37 @@ function fail(err) {
 
 function setTitle(t) { $('#title').textContent = t; }
 
-/* ---------------------------------------------------------------- home */
-async function home() {
-  setTitle('Jataka');
+/* The two top-level collections share the bottom bar the chart view uses,
+   so "where am I" reads the same everywhere. */
+const HOME_TABS = [['charts', '✳', 'Charts', '/'],
+                   ['places', '◎', 'Places', '/places']];
+
+function homeTabs(active) {
+  const tabbar = $('#tabbar');
+  tabbar.hidden = false;
+  view.classList.add('has-tabs');
+  tabbar.innerHTML = HOME_TABS.map(([key, glyph, label]) =>
+    `<button data-go="${key}" class="${key === active ? 'on' : ''}">
+       <span class="g">${glyph}</span>${esc(label)}</button>`).join('');
+  tabbar.querySelectorAll('button').forEach((b) => {
+    const target = HOME_TABS.find((t) => t[0] === b.dataset.go)[3];
+    b.onclick = () => go(target);
+  });
+}
+
+function dataAction() {
   const action = $('#bar-action');
   action.hidden = false;
   action.textContent = '⋯';
   action.setAttribute('aria-label', 'Data and backup');
   action.onclick = () => go('/data');
+}
+
+/* ---------------------------------------------------------------- home */
+async function home() {
+  setTitle('Janma Kundali');
+  dataAction();
+  homeTabs('charts');
 
   state.charts = (await api('/api/charts')).charts;
   const cards = state.charts.map((c) => `
@@ -172,6 +198,209 @@ async function home() {
   }
 }
 
+/* -------------------------------------------------------------- places */
+/* A place is a coordinate book entry: nothing is computed from it, it
+   just fills a chart form in without a trip to a map app. */
+async function ensurePlaces(force) {
+  if (force || !state.places.length) {
+    state.places = (await api('/api/places')).places;
+  }
+  return state.places;
+}
+
+async function ensureHealth() {
+  if (!state.health) state.health = await api('/api/health');
+  return state.health;
+}
+
+const placeCoords = (p) =>
+  `${(+p.lat).toFixed(4)}, ${(+p.lon).toFixed(4)}`;
+
+async function placesView() {
+  setTitle('Places');
+  dataAction();
+  homeTabs('places');
+
+  const places = await ensurePlaces(true);
+  const cards = places.map((p) => `
+    <button class="list-card" data-id="${p.id}">
+      <div class="nm">${esc(p.name)}</div>
+      <div class="meta mono">${esc(placeCoords(p))}${
+        p.tz ? ` · ${esc(p.tz)}` : ''}</div>
+      ${p.notes ? `<div class="meta">${esc(p.notes)}</div>` : ''}
+    </button>`).join('');
+
+  view.innerHTML = (places.length ? `
+    <input id="filter" type="search" placeholder="Search places"
+           autocomplete="off" style="margin-bottom:12px">
+    <div id="cards">${cards}</div>
+    <p class="hint">Saved places show up as a picker on the chart form, so
+      a birthplace is looked up once and reused.</p>` : `
+    <div class="empty"><span class="glyph">◎</span>
+      <p>No places saved yet.</p>
+      <p class="small">Save the coordinates you keep re-typing — a
+        birthplace, where you live now — and pick them from the chart
+        form instead of looking them up again.</p>
+    </div>`) + `<button class="fab" id="add" aria-label="New place">+</button>`;
+
+  $('#add').onclick = () => go('/places/new');
+  view.querySelectorAll('.list-card').forEach((el) => {
+    el.onclick = () => go(`/places/${el.dataset.id}/edit`);
+  });
+  const filter = $('#filter');
+  if (filter) {
+    filter.oninput = () => {
+      const q = filter.value.toLowerCase();
+      view.querySelectorAll('.list-card').forEach((el) => {
+        el.hidden = !el.textContent.toLowerCase().includes(q);
+      });
+    };
+  }
+}
+
+async function editPlace(id) {
+  placeForm((await api('/api/places/' + id)).place);
+}
+
+async function placeForm(rec) {
+  setTitle(rec ? 'Edit place' : 'New place');
+  const [tzs, health] = [await ensureTimezones(), await ensureHealth()];
+  const v = rec || { name: '', lat: '', lon: '', tz: '', notes: '' };
+
+  view.innerHTML = card(null, searchBox(health.geocoder) + `
+    <label for="p-name">Place name</label>
+    <input id="p-name" value="${esc(v.name)}"
+           placeholder="Sirsi, Karnataka, India">
+    <div class="row">
+      <div><label for="p-lat">Latitude (+N)</label>
+        <input id="p-lat" type="number" step="any" inputmode="decimal"
+               value="${esc(v.lat)}"></div>
+      <div><label for="p-lon">Longitude (+E)</label>
+        <input id="p-lon" type="number" step="any" inputmode="decimal"
+               value="${esc(v.lon)}"></div>
+    </div>
+    <button class="btn small" id="p-here" style="margin-top:10px">
+      ◎ Use this device's location</button>
+    <label for="p-tz">Timezone (optional, IANA)</label>
+    <input id="p-tz" list="tzlist" value="${esc(v.tz)}" autocapitalize="off"
+           autocomplete="off" spellcheck="false" placeholder="Asia/Kolkata">
+    <datalist id="tzlist">${tzs.map((t) => `<option value="${esc(t)}">`).join('')}</datalist>
+    <label for="p-notes">Notes</label>
+    <textarea id="p-notes" rows="2">${esc(v.notes)}</textarea>
+    <div style="margin-top:18px">
+      <button class="btn primary" id="p-save">${rec ? 'Save changes' : 'Save place'}</button>
+      ${rec ? '<button class="btn danger" id="p-del">Delete place</button>' : ''}
+    </div>`);
+
+  wireSearch((hit) => {
+    if (!$('#p-name').value.trim()) $('#p-name').value = hit.label;
+    $('#p-lat').value = hit.lat;
+    $('#p-lon').value = hit.lon;
+    if (hit.tz) $('#p-tz').value = hit.tz;
+    toast(`Filled from ${hit.label}`);
+  });
+  wireHere('#p-here', '#p-lat', '#p-lon');
+
+  $('#p-save').onclick = async () => {
+    const body = { name: $('#p-name').value, lat: $('#p-lat').value,
+                   lon: $('#p-lon').value, tz: $('#p-tz').value,
+                   notes: $('#p-notes').value };
+    try {
+      if (rec) await api('/api/places/' + rec.id,
+                         { method: 'PUT', body: JSON.stringify(body) });
+      else await api('/api/places',
+                     { method: 'POST', body: JSON.stringify(body) });
+      state.places = [];
+      toast('Saved');
+      go('/places');
+    } catch (err) {
+      toast(err.message, true);
+    }
+  };
+
+  if (rec) {
+    $('#p-del').onclick = async () => {
+      if (!confirm(`Delete ${rec.name}?`)) return;
+      await api('/api/places/' + rec.id, { method: 'DELETE' });
+      state.places = [];
+      toast('Deleted');
+      go('/places');
+    };
+  }
+}
+
+/* ------------------------------------------------------- place lookup */
+/* Optional by design: the server says whether it has a place index, and
+   if it does not we simply do not offer the box. Coordinates typed in by
+   hand remain the path that always works. */
+function searchBox(geocoder) {
+  if (!geocoder) {
+    return `<p class="hint">Place search is switched off on this server —
+      look the coordinates up in any map app and type them in.</p>`;
+  }
+  return `
+    <label for="g-q">Find a city or town</label>
+    <div class="row search-row">
+      <input id="g-q" type="search" placeholder="Sirsi, Karnataka"
+             autocomplete="off" enterkeyhint="search">
+      <button class="btn small" id="g-go">Search</button>
+    </div>
+    <div id="g-out"></div>
+    <p class="hint">Fills the coordinates and the timezone from
+      ${esc(geocoder)}. The name you type is sent there when you press
+      Search, and nothing else leaves this machine.</p>`;
+}
+
+function wireSearch(onPick) {
+  const input = $('#g-q');
+  const out = $('#g-out');
+  if (!input) return;                       // lookup is switched off
+  let hits = [];
+
+  const run = async () => {
+    const q = input.value.trim();
+    if (!q) return toast('Type a city or town name first', true);
+    out.innerHTML = '<p class="small muted">Searching…</p>';
+    try {
+      hits = (await api('/api/geocode?q=' + encodeURIComponent(q))).results;
+    } catch (err) {
+      hits = [];
+      out.innerHTML = `<p class="small muted">${esc(err.message)}</p>`;
+      return;
+    }
+    out.innerHTML = hits.length ? hits.map((h, i) => `
+      <button class="pick" data-i="${i}">
+        <b>${esc(h.label)}</b>
+        <span class="mono">${esc(h.lat.toFixed(4))}, ${esc(h.lon.toFixed(4))}${
+          h.tz ? ` · ${esc(h.tz)}` : ''}</span>
+      </button>`).join('')
+      : `<p class="small muted">Nothing found for “${esc(q)}”. Try the
+         nearest larger town, or type the coordinates in.</p>`;
+    out.querySelectorAll('.pick').forEach((b) => {
+      b.onclick = () => { onPick(hits[+b.dataset.i]); out.innerHTML = ''; };
+    });
+  };
+
+  $('#g-go').onclick = run;
+  input.onkeydown = (ev) => {
+    if (ev.key === 'Enter') { ev.preventDefault(); run(); }
+  };
+}
+
+function wireHere(btnSel, latSel, lonSel) {
+  $(btnSel).onclick = () => {
+    if (!navigator.geolocation) return toast('No geolocation on this device', true);
+    busy(true, 'Reading device location…');
+    navigator.geolocation.getCurrentPosition((pos) => {
+      busy(false);
+      $(latSel).value = pos.coords.latitude.toFixed(4);
+      $(lonSel).value = pos.coords.longitude.toFixed(4);
+      toast('Filled from device GPS — edit if the birthplace differs');
+    }, (err) => { busy(false); toast(err.message, true); },
+      { timeout: 10000 });
+  };
+}
+
 /* ---------------------------------------------------------------- form */
 async function ensureTimezones() {
   if (!state.tzs) state.tzs = (await api('/api/timezones')).timezones;
@@ -186,10 +415,19 @@ async function editChart(id) {
 async function form(rec) {
   setTitle(rec ? 'Edit chart' : 'New chart');
   const tzs = await ensureTimezones();
+  const health = await ensureHealth();
+  const places = await ensurePlaces();
   const guess = Intl.DateTimeFormat().resolvedOptions().timeZone;
   const v = rec || { name: '', birth_date: '', birth_time: '', tz: guess,
                      lat: '', lon: '', place: '', ayanamsa: 'raman',
                      varsha_years: '', notes: '' };
+
+  const saved = places.length ? `
+    <label for="f-saved">Saved place</label>
+    <select id="f-saved">
+      <option value="">— pick one —</option>
+      ${places.map((p) => `<option value="${p.id}">${esc(p.name)}</option>`).join('')}
+    </select>` : '';
 
   view.innerHTML = card(null, `
     <label for="f-name">Name</label>
@@ -204,6 +442,9 @@ async function form(rec) {
     <input id="f-tz" list="tzlist" value="${esc(v.tz)}" autocapitalize="off"
            autocomplete="off" spellcheck="false" placeholder="Asia/Kolkata">
     <datalist id="tzlist">${tzs.map((t) => `<option value="${esc(t)}">`).join('')}</datalist>
+    <h3>Birthplace</h3>
+    ${saved}
+    ${searchBox(health.geocoder)}
     <div class="row">
       <div><label for="f-lat">Latitude (+N)</label>
         <input id="f-lat" type="number" step="any" inputmode="decimal" value="${esc(v.lat)}"></div>
@@ -212,10 +453,13 @@ async function form(rec) {
     </div>
     <button class="btn small" id="f-here" style="margin-top:10px">
       ◎ Use this device's location</button>
-    <p class="hint">Coordinates are an explicit input by design: look the
-      birthplace up once in any map app. Nothing is geocoded for you.</p>
     <label for="f-place">Place label</label>
     <input id="f-place" value="${esc(v.place)}" placeholder="Sirsi, Karnataka, India">
+    <button class="btn small" id="f-keep" style="margin-top:10px">
+      ☆ Save this birthplace to Places</button>
+    <p class="hint">Whatever fills these boxes, the coordinates are what
+      the chart is cast from — check them against the birthplace you were
+      told, not the nearest big city.</p>
     <label for="f-ayan">Ayanamsa</label>
     <select id="f-ayan">
       <option value="raman"${v.ayanamsa === 'raman' ? ' selected' : ''}>Raman</option>
@@ -231,16 +475,40 @@ async function form(rec) {
       ${rec ? '<button class="btn danger" id="f-del">Delete chart</button>' : ''}
     </div>`);
 
-  $('#f-here').onclick = () => {
-    if (!navigator.geolocation) return toast('No geolocation on this device', true);
-    busy(true, 'Reading device location…');
-    navigator.geolocation.getCurrentPosition((pos) => {
-      busy(false);
-      $('#f-lat').value = pos.coords.latitude.toFixed(4);
-      $('#f-lon').value = pos.coords.longitude.toFixed(4);
-      toast('Filled from device GPS — edit if the birthplace differs');
-    }, (err) => { busy(false); toast(err.message, true); },
-      { timeout: 10000 });
+  wireHere('#f-here', '#f-lat', '#f-lon');
+  wireSearch((hit) => {
+    $('#f-lat').value = hit.lat;
+    $('#f-lon').value = hit.lon;
+    if (hit.tz) $('#f-tz').value = hit.tz;
+    if (!$('#f-place').value.trim()) $('#f-place').value = hit.label;
+    toast(`Filled from ${hit.label}`);
+  });
+
+  const savedPicker = $('#f-saved');
+  if (savedPicker) {
+    savedPicker.onchange = () => {
+      const p = state.places.find((x) => String(x.id) === savedPicker.value);
+      if (!p) return;
+      $('#f-lat').value = p.lat;
+      $('#f-lon').value = p.lon;
+      if (p.tz) $('#f-tz').value = p.tz;
+      $('#f-place').value = p.name;
+      toast(`Filled from ${p.name}`);
+    };
+  }
+
+  $('#f-keep').onclick = async () => {
+    const body = { name: $('#f-place').value.trim(), lat: $('#f-lat').value,
+                   lon: $('#f-lon').value, tz: $('#f-tz').value, notes: '' };
+    if (!body.name) return toast('Give the place a label first', true);
+    try {
+      await api('/api/places', { method: 'POST', body: JSON.stringify(body) });
+      state.places = [];
+      await ensurePlaces(true);
+      toast(`Saved ${body.name} to Places`);
+    } catch (err) {
+      toast(err.message, true);
+    }
   };
 
   $('#f-save').onclick = async () => {
@@ -551,11 +819,14 @@ function wireReport(s) {
 async function dataView() {
   setTitle('Data & backup');
   const health = await api('/api/health');
+  state.health = health;
   view.innerHTML = card('Backups', `
       <p class="small muted">Open formats only: a JSON document, per-table
-         CSV, or the SQLite file itself.</p>
-      <button class="btn" id="d-json">⤓ All charts (JSON)</button>
+         CSV, or the SQLite file itself. The JSON backup carries charts
+         and saved places together.</p>
+      <button class="btn" id="d-json">⤓ Everything (JSON)</button>
       <button class="btn" id="d-csv">⤓ All charts (CSV)</button>
+      <button class="btn" id="d-places">⤓ All places (CSV)</button>
       <button class="btn" id="d-db">⤓ kundali.sqlite</button>
       <h3>Restore</h3>
       <p class="small muted">Importing a JSON backup merges it in; records
@@ -563,11 +834,13 @@ async function dataView() {
       <input id="d-file" type="file" accept="application/json,.json">`)
     + card('Server', kv([['Database', health.db],
         ['Saved charts', health.charts],
+        ['Saved places', health.places],
+        ['Place search', health.geocoder || 'off — coordinates by hand'],
         ['Version', 'kundali-report v' + health.version],
         ['Authentication', 'none — keep this on a trusted network']]))
     + card('About', `
-      <p class="small"><b style="color:var(--gold)">Jataka</b> — Jyotish
-         computation with the Swiss Ephemeris,
+      <p class="small"><b style="color:var(--gold)">Janma Kundali</b> —
+         Jyotish computation with the Swiss Ephemeris,
          sidereal, whole-sign houses, mean node. The web app, the PDF and
          the HTML report all run the same code.</p>
       <p class="small">Built by <b style="color:var(--gold)">CM Hegday</b>
@@ -583,6 +856,7 @@ async function dataView() {
 
   $('#d-json').onclick = () => download('/api/export/charts.json', 'kundali-charts.json');
   $('#d-csv').onclick = () => download('/api/export/charts.csv', 'kundali-charts.csv');
+  $('#d-places').onclick = () => download('/api/export/places.csv', 'kundali-places.csv');
   $('#d-db').onclick = () => download('/api/export/kundali.sqlite', 'kundali.sqlite');
   $('#d-file').onchange = async (ev) => {
     const file = ev.target.files[0];
@@ -591,7 +865,11 @@ async function dataView() {
     try {
       const out = await api('/api/import',
         { method: 'POST', body: await file.text() });
-      toast(`Imported: ${out.added} added, ${out.updated} updated`);
+      state.places = [];
+      toast(`Imported: ${out.added} added, ${out.updated} updated`
+            + (out.places_added || out.places_updated
+               ? `; places ${out.places_added} added, ${out.places_updated} updated`
+               : ''));
     } catch (err) {
       toast(err.message, true);
     } finally {
@@ -612,7 +890,7 @@ async function dataView() {
 /* --------------------------------------------------- brand & dev badge */
 async function showVersion() {
   try {
-    const h = await api('/api/health');
+    const h = await ensureHealth();
     $('#version').textContent = 'v' + h.version;
   } catch (e) { /* offline: leave it blank rather than lie */ }
 }

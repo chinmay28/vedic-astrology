@@ -88,7 +88,7 @@ def build_html(natal: Chart, varsha_years: list[int], out_path: str, asof=None) 
 
     h: list[str] = [f"""<!DOCTYPE html><html><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Jataka - {escape(natal.name)}</title><style>{_CSS}</style></head>
+<title>Janma Kundali - {escape(natal.name)}</title><style>{_CSS}</style></head>
 <body><div class="wrap">
 <p class="sub" style="letter-spacing:.25em;text-transform:uppercase;color:var(--saffron);font-size:12px">Janma Kundali</p>
 <h1>{escape(natal.name)}</h1>

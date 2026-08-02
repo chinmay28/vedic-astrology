@@ -17,6 +17,15 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends build-essential \
     && rm -rf /var/lib/apt/lists/*
 
+# The patch component of the version is the repository's commit count, and
+# .dockerignore keeps .git out of the build context - so the count comes in
+# as a build argument (scripts/quickstart.sh passes it; docker-compose.yml
+# forwards it). Without it the build honestly reports patch 0 rather than
+# guessing. pip bakes the resolved version into the wheel metadata, which is
+# where the running container reads it back from.
+ARG KUNDALI_VERSION_PATCH=""
+ENV KUNDALI_VERSION_PATCH=${KUNDALI_VERSION_PATCH}
+
 WORKDIR /src
 COPY pyproject.toml ./
 COPY kundali ./kundali

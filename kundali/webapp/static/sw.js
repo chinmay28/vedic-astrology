@@ -1,8 +1,8 @@
 /* sw.js - app shell offline, API network-first with a stale fallback.
    Downloads (reports, exports) are never cached: they are large and
    always recomputed server-side. */
-const SHELL = 'kundali-shell-v2';
-const DATA = 'kundali-data-v1';
+const SHELL = 'kundali-shell-v3';
+const DATA = 'kundali-data-v2';
 const ASSETS = ['/', '/app.css', '/app.js', '/icon.svg',
                 '/manifest.webmanifest', '/dev-badge.png'];
 
@@ -17,7 +17,9 @@ self.addEventListener('activate', (e) => {
   )).then(() => self.clients.claim()));
 });
 
-const NEVER_CACHE = /\/(report\.(pdf|html)|export\.json|positions\.csv|dasha\.csv)|\/api\/(export|import)/;
+/* Place search is live or not at all: a cached hit list for a query typed
+   while offline would look like a working search and be a stale one. */
+const NEVER_CACHE = /\/(report\.(pdf|html)|export\.json|positions\.csv|dasha\.csv)|\/api\/(export|import|geocode)/;
 
 self.addEventListener('fetch', (e) => {
   const req = e.request;
