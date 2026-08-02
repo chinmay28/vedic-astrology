@@ -51,7 +51,7 @@ curl -fsSL …/scripts/quickstart.sh | sudo KUNDALI_BIND=127.0.0.1 PORT=9090 bas
 | `BACKUP_DIR` | `/var/lib/kundali/backups` | Host directory for pre-upgrade backups |
 | `BACKUP_KEEP` | `10` | Backups kept |
 | `INSTALL_DOCKER` | `auto` | `never` to fail instead of installing Docker |
-| `KUNDALI_GEOCODER` | Open-Meteo's index | `off` disables the city search; a URL points it elsewhere. Set it in `.env` beside the compose file — see [Place search](#place-search). |
+| `KUNDALI_GEOCODER` | Open-Meteo's index | `off` disables the city search and timezone inference; a URL points it elsewhere. Set it in `.env` beside the compose file — see [Place search and timezone inference](#place-search-and-timezone-inference). |
 
 On a Pi the first build takes roughly 5-15 minutes (longer on a Pi 3, or on
 32-bit Pi OS where pyswisseph compiles from source); later runs reuse
@@ -177,7 +177,7 @@ curl -fsSL …/scripts/install-systemd.sh | sudo PORT=9090 KUNDALI_REF=v1.4.0 ba
 | `HOST` | `0.0.0.0` | Bind address (`127.0.0.1` for localhost only) |
 | `PYTHON` | `python3` | Interpreter to build the venv from (needs ≥ 3.10) |
 | `BACKUP_KEEP` | `10` | Pre-upgrade database snapshots to keep |
-| `KUNDALI_GEOCODER` | Open-Meteo's index | `off` disables the city search — see [Place search](#place-search) |
+| `KUNDALI_GEOCODER` | Open-Meteo's index | `off` disables the city search and timezone inference — see [Place search and timezone inference](#place-search-and-timezone-inference) |
 
 Running two instances on one host: give each its own `KUNDALI_SERVICE`,
 `KUNDALI_PREFIX`, `KUNDALI_DATA_DIR` and `PORT`.
@@ -256,23 +256,30 @@ Copying the live database file directly is fine while the service is
 stopped. While it is running, prefer the `/api/export/kundali.sqlite`
 endpoint — it takes a proper SQLite backup with the WAL folded in.
 
-## Place search
+## Place search and timezone inference
 
 The **Places** tab and the birthplace box on the chart form can look a
-city or town up instead of asking for coordinates. That lookup is the only
-thing in this project that leaves the machine:
+city or town up instead of asking for coordinates, and work out the
+timezone from the birthplace so nobody has to type one. Those lookups are
+the only thing in this project that leaves the machine:
 
-* One outbound `GET` per search, made by the server (never by the phone),
+* One outbound `GET` per lookup, made by the server (never by the phone),
   to `$KUNDALI_GEOCODER` — Open-Meteo's public GeoNames index by default.
-* It carries the name typed into the box and nothing else. No chart data,
-  no birth times, no identifiers.
-* It runs only when someone presses **Search**. Nothing is looked up in
-  the background, and nothing is looked up when a chart is saved.
+* A search carries the name typed into the box and nothing else. A
+  timezone lookup carries a latitude and longitude and nothing else. No
+  birth times, no names, no identifiers.
+* A search runs only when someone presses **Search**. A timezone lookup
+  runs when coordinates change on a form, or when a chart is saved whose
+  zone is not known yet — never for a chart that already has one.
 * Results fill in latitude, longitude and the IANA timezone.
 
+A chart's zone is resolved **once, on write, and stored**. Nothing
+re-resolves a saved chart, so a lookup that answers differently later
+cannot move a chart you already have.
+
 To keep an installation sealed, switch it off — the GUI then hides the
-search box rather than offering a button that cannot work, and every form
-still accepts coordinates typed by hand:
+search box rather than offering a button that cannot work, and asks for
+the timezone as it used to:
 
 ```bash
 # Docker: add it to the .env beside docker-compose.yml, then re-run up -d
@@ -282,9 +289,16 @@ KUNDALI_GEOCODER=off
 Environment=KUNDALI_GEOCODER=off
 ```
 
-Setting it to a URL points the search at another GeoNames-shaped index
-(a self-hosted one, for instance). `/api/health` reports which index is in
-use, or `null` when search is off.
+Setting it to a URL points the search at another GeoNames-shaped index (a
+self-hosted one, for instance); `KUNDALI_TZ_LOOKUP` does the same for the
+coordinate-to-zone endpoint, and `off` disables just that half.
+`/api/health` reports which index is in use for each, or `null`.
+
+**The zone is never guessed.** If it cannot be established the form asks,
+and the API answers `400` rather than storing something plausible: the
+only offline alternative — nearest city in the tz database's own table —
+places Indian births in `Asia/Colombo` or `Asia/Karachi`, half an hour
+out, which is the exact class of error this tool exists to avoid.
 
 ## Exposing it safely
 

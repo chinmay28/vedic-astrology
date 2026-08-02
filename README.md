@@ -190,21 +190,41 @@ The **Places** tab is a coordinate book: save the birthplace once, pick it
 from the chart form ever after. Nothing is computed from a place — it only
 fills in latitude, longitude and timezone.
 
+**The timezone is not asked for.** It is a fact about the birthplace, so
+it comes from the birthplace: a place picked from the index or from your
+saved places brings its own zone, and coordinates typed by hand are looked
+up. The chart form shows the result and where it came from, with a
+*Change* link, because a chart cast in the wrong zone is wrong by hours —
+this is the one inference you must be able to see and overrule. It is
+resolved once, when the chart is saved, and stored; a lookup answering
+differently next year never moves a chart you already have.
+
+If the zone cannot be established — search switched off, or offline — the
+field comes back and asks. **It is never guessed.** The tempting offline
+shortcut, nearest city in the tz database's own table, is wrong exactly
+where this tool is most used: it puts Sirsi in `Asia/Colombo` and Mumbai
+in `Asia/Karachi`, both half an hour out. A question beats a plausible
+lie.
+
 Typing a town name is optional convenience, and the only thing in this
 project that talks to the internet. Pressing *Search* sends that name (and
 nothing else) to Open-Meteo's public GeoNames index, which answers with
 coordinates **and the IANA timezone** — the part people most often get
-wrong. It runs server-side, so phones talk only to your own server.
+wrong. Saving a chart whose zone is not known yet asks the same index
+which zone those coordinates sit in. Both run server-side, so phones talk
+only to your own server.
 
 Switch it off for an installation that must stay sealed:
 
 ```bash
-KUNDALI_GEOCODER=off      # the GUI then hides the search box entirely
+KUNDALI_GEOCODER=off      # hides the search box and asks for the timezone
 ```
 
 Point it at another GeoNames-shaped index by setting the same variable to
 that URL. With search off — or simply offline — every form still works:
-type the coordinates in, as the CLI always has.
+type the coordinates and the zone in, as the CLI always has. The CLI's
+`--tz` stays required for the same reason: it has no lookup and must not
+invent one.
 
 ## Credits
 

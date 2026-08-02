@@ -43,9 +43,10 @@ services:
       - kundali-data:/data
     environment:
       - TZ=UTC          # only affects log timestamps; chart timezones are per-record
-      # The city search index. Empty means the built-in default; set
+      # The place index, used for city search and for working out a
+      # birthplace's timezone. Empty means the built-in default; set
       # KUNDALI_GEOCODER=off in .env for an install that must never reach
-      # the internet (the GUI then hides the search box).
+      # the internet (the GUI then asks for both by hand).
       - KUNDALI_GEOCODER=${KUNDALI_GEOCODER:-}
     # Hardening, matching the systemd unit in deploy/.
     read_only: true     # the rootfs is immutable; /data and /tmp are the exceptions

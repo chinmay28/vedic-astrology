@@ -48,8 +48,9 @@
 #   BACKUP_KEEP      backups kept          (default: 10)
 #   INSTALL_DOCKER   auto | never          install Docker if missing (default: auto)
 #   KUNDALI_GEOCODER city search index     (default: Open-Meteo's public one;
-#                                           'off' seals the install and hides
-#                                           the search box)
+#                                           'off' seals the install: no search
+#                                           box, and the timezone is asked for
+#                                           instead of inferred)
 #
 set -euo pipefail
 

@@ -50,8 +50,9 @@
 #   PYTHON            interpreter to build on (default: python3; needs >= 3.10)
 #   BACKUP_KEEP       pre-upgrade backups kept (default: 10)
 #   KUNDALI_GEOCODER  city search index        (default: Open-Meteo's public
-#                                               one; 'off' seals the install
-#                                               and hides the search box)
+#                                               one; 'off' seals the install:
+#                                               no search box, and the timezone
+#                                               is asked for, not inferred)
 #
 set -euo pipefail
 umask 022      # the service user must be able to read the code it runs

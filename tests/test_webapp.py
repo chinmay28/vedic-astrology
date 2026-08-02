@@ -285,6 +285,77 @@ def test_geocode_reports_an_unreachable_index_as_a_message(monkeypatch):
     assert "coordinates by hand" in str(err.value)
 
 
+# ---------------------------------------------------- timezone inference
+
+@pytest.fixture()
+def tz_index(monkeypatch):
+    """A stand-in for the coordinate -> zone endpoint. `answer` is what
+    it will claim the zone is."""
+    from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+    state = {"answer": "Asia/Kolkata"}
+
+    class Stub(BaseHTTPRequestHandler):
+        def do_GET(self):
+            body = json.dumps({"timezone": state["answer"]}).encode()
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
+        def log_message(self, *a):
+            pass
+
+    httpd = ThreadingHTTPServer(("127.0.0.1", 0), Stub)
+    threading.Thread(target=httpd.serve_forever, daemon=True).start()
+    monkeypatch.setenv("KUNDALI_GEOCODER", "http://127.0.0.1:1/search")
+    monkeypatch.setenv(
+        "KUNDALI_TZ_LOOKUP",
+        f"http://127.0.0.1:{httpd.server_address[1]}/v1/forecast")
+    yield state
+    httpd.shutdown()
+    httpd.server_close()
+
+
+def test_timezone_comes_from_the_index(tz_index):
+    assert geocode.timezone_at(14.6197, 74.8354) == "Asia/Kolkata"
+    assert geocode.timezone_source() in geocode.timezone_endpoint()
+
+
+def test_an_unresolvable_zone_name_is_refused(tz_index):
+    """Only a name this machine can resolve is worth anything - zoneinfo
+    is what applies the historical DST rules."""
+    tz_index["answer"] = "Mars/Olympus_Mons"
+    assert geocode.timezone_at(14.6197, 74.8354) is None
+    tz_index["answer"] = ""
+    assert geocode.timezone_at(14.6197, 74.8354) is None
+
+
+def test_timezone_lookup_never_raises(monkeypatch):
+    monkeypatch.setenv("KUNDALI_GEOCODER", "http://127.0.0.1:1/search")
+    monkeypatch.setenv("KUNDALI_TZ_LOOKUP", "http://127.0.0.1:1/forecast")
+    assert geocode.timezone_at(14.6197, 74.8354) is None      # unreachable
+    assert geocode.timezone_at("north", 74.8354) is None      # not a number
+    assert geocode.timezone_at(999, 74.8354) is None          # off the globe
+
+
+def test_sealing_the_geocoder_seals_the_timezone_lookup_too(monkeypatch):
+    monkeypatch.setenv("KUNDALI_GEOCODER", "off")
+    monkeypatch.delenv("KUNDALI_TZ_LOOKUP", raising=False)
+    assert geocode.timezone_endpoint() is None
+    assert geocode.timezone_source() is None
+    assert geocode.timezone_at(14.6197, 74.8354) is None
+
+
+def test_the_zone_is_never_guessed_from_distance():
+    """The tempting offline shortcut - nearest representative city in the
+    tz database - puts every Indian birthplace half an hour out. Nothing
+    in here may fall back to it."""
+    src = pathlib.Path(geocode.__file__).read_text()
+    assert "zone1970" not in src and "zone.tab" not in src
+
+
 # ------------------------------------------------ graceful shutdown
 
 def test_sigterm_drains_in_flight_requests(tmp_path):
@@ -521,6 +592,62 @@ def test_health_reports_the_place_index(base, monkeypatch):
     assert health["geocoder"] == "127.0.0.1:1"
     assert call(base, "/api/geocode?q=")[0] == 400        # nothing to search
     assert call(base, "/api/geocode?q=Sirsi")[0] == 502   # index unreachable
+
+
+def test_a_chart_saved_without_a_timezone_gets_one_from_its_birthplace(
+        base, tz_index):
+    """The zone is a fact about the coordinates, so it is not asked for."""
+    payload = {k: v for k, v in C3.items() if k != "tz"}
+    status, _, body = call(base, "/api/charts", "POST",
+                           {**payload, "name": "Inferred"})
+    assert status == 201
+    rec = json.loads(body)["chart"]
+    assert rec["tz"] == "Asia/Kolkata"
+
+    # Resolved once and stored: a later lookup answering differently must
+    # not silently move a saved chart.
+    tz_index["answer"] = "America/Denver"
+    assert json.loads(call(base, f"/api/charts/{rec['id']}")[2])["chart"] \
+        ["tz"] == "Asia/Kolkata"
+    call(base, f"/api/charts/{rec['id']}", "DELETE")
+
+
+def test_an_explicit_timezone_is_never_overridden(base, tz_index):
+    tz_index["answer"] = "America/Denver"
+    status, _, body = call(base, "/api/charts", "POST",
+                           {**C3, "name": "Explicit"})
+    assert status == 201
+    rec = json.loads(body)["chart"]
+    assert rec["tz"] == "Asia/Kolkata"
+    call(base, f"/api/charts/{rec['id']}", "DELETE")
+
+
+def test_an_unresolvable_timezone_asks_instead_of_guessing(base, monkeypatch):
+    monkeypatch.setenv("KUNDALI_GEOCODER", "off")
+    payload = {k: v for k, v in C3.items() if k != "tz"}
+    status, _, body = call(base, "/api/charts", "POST", payload)
+    assert status == 400
+    assert "timezone" in json.loads(body)["error"]
+
+    status, _, body = call(base, "/api/preview", "POST", payload)
+    assert status == 400 and "timezone" in json.loads(body)["error"]
+
+
+def test_timezone_endpoint_answers_null_rather_than_erroring(base,
+                                                             monkeypatch):
+    monkeypatch.setenv("KUNDALI_GEOCODER", "off")
+    status, _, body = call(base, "/api/timezone?lat=14.6197&lon=74.8354")
+    assert status == 200
+    assert json.loads(body) == {"tz": None, "source": None,
+                                "reason": "timezone lookup is off on this "
+                                          "server"}
+    assert call(base, "/api/timezone?lat=here&lon=there")[0] == 400
+
+
+def test_timezone_endpoint_resolves(base, tz_index):
+    status, _, body = call(base, "/api/timezone?lat=14.6197&lon=74.8354")
+    assert status == 200 and json.loads(body)["tz"] == "Asia/Kolkata"
+    assert json.loads(call(base, "/api/health")[2])["tz_lookup"]
 
 
 def test_backup_endpoints(base, chart_id):

@@ -7,9 +7,11 @@ Contract:
       4xx/5xx status and a message meant to be shown to the user.
     * Report downloads stream bytes produced by service.py, so the web
       GUI and the CLI emit byte-identical documents.
-    * /api/geocode is the one route that talks to anything outside this
-      process, only when a person presses search, and only when
-      $KUNDALI_GEOCODER is not `off`. See geocode.py.
+    * /api/geocode and /api/timezone are the only routes that talk to
+      anything outside this process, and only when $KUNDALI_GEOCODER is
+      not `off`. A chart's timezone is resolved from its birthplace once,
+      on write, and stored - see `_with_timezone`. Nothing re-resolves a
+      saved chart. See geocode.py.
 
 There is no authentication: like CountRoster, this is meant for a
 trusted network. The default bind is 127.0.0.1.
@@ -197,11 +199,34 @@ class Handler(BaseHTTPRequestHandler):
                     "charts": len(self.db.list()),
                     "places": len(self.db.places()),
                     # None when lookup is off, so the GUI can hide the
-                    # search box instead of offering a dead button.
-                    "geocoder": geocode.source()})
+                    # search box instead of offering a dead button - and
+                    # ask for a timezone instead of inferring one.
+                    "geocoder": geocode.source(),
+                    "tz_lookup": geocode.timezone_source()})
 
     def timezones(self) -> None:
         self._json({"timezones": sorted(available_timezones())})
+
+    def _coords(self) -> tuple[float, float]:
+        try:
+            return (float(self.query.get("lat", [""])[0]),
+                    float(self.query.get("lon", [""])[0]))
+        except (TypeError, ValueError):
+            raise ValueError("lat and lon must be numbers") from None
+
+    def timezone_for(self) -> None:
+        """Which zone those coordinates are in. `tz: null` is a real
+        answer - it means "ask", not "error"."""
+        lat, lon = self._coords()
+        source = geocode.timezone_source()
+        if source is None:
+            self._json({"tz": None, "source": None,
+                        "reason": "timezone lookup is off on this server"})
+            return
+        tz = geocode.timezone_at(lat, lon)
+        self._json({"tz": tz, "source": source if tz else None,
+                    "reason": None if tz else
+                    "could not establish the zone for those coordinates"})
 
     def geocode_search(self) -> None:
         """City/town lookup. Optional by design - see geocode.py."""
@@ -225,11 +250,28 @@ class Handler(BaseHTTPRequestHandler):
             self._error(404, "no chart with that id")
         return rec
 
+    def _with_timezone(self, raw: dict) -> dict:
+        """A record that arrives without a timezone gets one from its
+        birthplace - that is a fact about the coordinates, not something
+        worth asking a person for. Resolved once, on write, and stored:
+        a saved chart never changes because a lookup answered differently
+        later."""
+        if not isinstance(raw, dict) or str(raw.get("tz") or "").strip():
+            return raw
+        tz = geocode.timezone_at(raw.get("lat"), raw.get("lon"))
+        if tz is None:
+            raise ValueError(
+                "could not work out the timezone for that birthplace - "
+                "search for the town so the index can supply it, or set "
+                "the timezone yourself")
+        return {**raw, "tz": tz}
+
     def charts_list(self) -> None:
         self._json({"charts": self.db.list()})
 
     def charts_create(self) -> None:
-        self._json({"chart": self.db.create(validate(self._body()))}, 201)
+        rec = validate(self._with_timezone(self._body()))
+        self._json({"chart": self.db.create(rec)}, 201)
 
     def chart_get(self, chart_id: str) -> None:
         rec = self._require(chart_id)
@@ -239,8 +281,8 @@ class Handler(BaseHTTPRequestHandler):
     def chart_update(self, chart_id: str) -> None:
         if self._require(chart_id) is None:
             return
-        self._json({"chart": self.db.update(int(chart_id),
-                                            validate(self._body()))})
+        rec = validate(self._with_timezone(self._body()))
+        self._json({"chart": self.db.update(int(chart_id), rec)})
 
     def chart_delete(self, chart_id: str) -> None:
         if self._require(chart_id) is None:
@@ -296,7 +338,7 @@ class Handler(BaseHTTPRequestHandler):
     def preview(self) -> None:
         """Compute without saving - the 'try it' path on the form."""
         body = self._body()
-        rec = validate(body)
+        rec = validate(self._with_timezone(body))
         rec["id"] = None
         self._json(service.summary(rec, body.get("asof")))
 
@@ -370,6 +412,7 @@ Handler.ROUTES = [
     ("GET", re.compile(r"/icons/(\d+)\.png"), "icon"),
     ("GET", re.compile(r"/api/health"), "health"),
     ("GET", re.compile(r"/api/timezones"), "timezones"),
+    ("GET", re.compile(r"/api/timezone"), "timezone_for"),
     ("GET", re.compile(r"/api/geocode"), "geocode_search"),
     ("GET", re.compile(r"/api/charts"), "charts_list"),
     ("POST", re.compile(r"/api/charts"), "charts_create"),
