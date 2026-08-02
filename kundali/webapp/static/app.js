@@ -520,6 +520,42 @@ function wireHere(btnSel, latSel, lonSel) {
   };
 }
 
+/* A year list on a numeric keypad, which has no comma and no space bar:
+   the separator cannot be typed, so it is inferred from position - every
+   fourth digit ends a year. Type 20262027, read "2026 2027". */
+function groupYears(digits) {
+  return digits.replace(/(\d{4})(?=\d)/g, '$1 ');
+}
+
+function wireYears(sel) {
+  const el = $(sel);
+  if (!el) return;
+  el.value = groupYears(el.value.replace(/\D/g, ''));
+  el.dataset.digits = el.value.replace(/\D/g, '').length;
+
+  el.addEventListener('input', (e) => {
+    let kept = el.value.slice(0, el.selectionStart).replace(/\D/g, '').length;
+    let digits = el.value.replace(/\D/g, '');
+    // Backspace onto an inserted space removes only the space, which we
+    // would put straight back - so take the digit before it instead and
+    // let the key do something.
+    if (e.inputType === 'deleteContentBackward'
+        && digits.length === Number(el.dataset.digits) && kept > 0) {
+      digits = digits.slice(0, kept - 1) + digits.slice(kept);
+      kept -= 1;
+    }
+    el.value = groupYears(digits);
+    el.dataset.digits = digits.length;
+    // Put the caret back after the same digit, counting past the spaces
+    // this reflow may have moved.
+    let at = 0;
+    for (let seen = 0; at < el.value.length && seen < kept; at += 1) {
+      if (el.value[at] !== ' ') seen += 1;
+    }
+    el.setSelectionRange(at, at);
+  });
+}
+
 /* ---------------------------------------------------------------- form */
 async function ensureTimezones() {
   if (!state.tzs) state.tzs = (await api('/api/timezones')).timezones;
@@ -585,10 +621,10 @@ async function form(rec) {
       <option value="lahiri"${v.ayanamsa === 'lahiri' ? ' selected' : ''}>Lahiri</option>
     </select>
     <label for="f-varsha">Varshaphala years (optional)</label>
-    <!-- No inputmode: numeric gets iOS' phone keypad, which has neither a
-         comma nor a space, so the list separator becomes untypeable. -->
-    <input id="f-varsha" value="${esc(v.varsha_years)}"
+    <input id="f-varsha" value="${esc(v.varsha_years)}" inputmode="numeric"
            placeholder="2026 2027 2028">
+    <p class="hint">Four digits per year, one after another — the spaces
+      appear as you type.</p>
     <label for="f-notes">Notes</label>
     <textarea id="f-notes" rows="2">${esc(v.notes)}</textarea>
     <div style="margin-top:18px">
@@ -598,6 +634,7 @@ async function form(rec) {
 
   renderTz();
   const tzFromCoords = wireCoordTz('#f-lat', '#f-lon');
+  wireYears('#f-varsha');
   wireHere('#f-here', '#f-lat', '#f-lon');
   wireSearch((hit) => {
     $('#f-lat').value = hit.lat;
@@ -901,7 +938,7 @@ function tabReport(s) {
       <input id="r-asof" type="date" value="${esc(s.asof)}">
       <label for="r-varsha">Varshaphala years for the report</label>
       <input id="r-varsha" value="${esc(s.chart.varsha_years || '')}"
-             placeholder="2026 2027">
+             inputmode="numeric" placeholder="2026 2027">
       <button class="btn small" id="r-apply" style="margin:10px 0 16px">
         Recompute this view</button>
       <button class="btn primary" id="r-pdf">⤓ PDF report</button>
@@ -927,6 +964,7 @@ function tabReport(s) {
 
 function wireReport(s) {
   const id = s.chart.id;
+  wireYears('#r-varsha');
   const qs = () => {
     const asof = $('#r-asof').value;
     const varsha = $('#r-varsha').value.trim();
