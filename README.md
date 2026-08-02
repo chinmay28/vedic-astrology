@@ -168,8 +168,8 @@ header, on the Data screen and in the footer of every report, so it is
 always clear which build produced a document.
 
 **Version numbers.** `MAJOR.MINOR.PATCH`, where the patch is the
-repository's commit count — every commit is a patch release, so `1.0.42`
-is the 42nd commit on the 1.0 line, the same scheme
+repository's commit count — every commit is a patch release, so `1.5.42`
+is the 42nd commit on the 1.5 line, the same scheme
 [CountRoster](https://github.com/chinmay28/CountRoster) uses. `MAJOR` and
 `MINOR` are declared in `kundali/version.py` and nowhere else;
 `scripts/version.py` prints what this checkout would build as. A build
