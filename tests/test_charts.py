@@ -355,3 +355,23 @@ def test_ayanamsa_state_isolation(c2):
     assert abs(_before[1] - _after[1]) < 0.01           # same end JD
     # and the Raman core phase must end ~21 May 2027 (+- scan grid)
     assert eph.jd_to_date_str(_after[1], c2.tz)[3:] == "May 2027"
+
+
+def test_sadesati_cache_keys_on_ayanamsa():
+    """The memoised Saturn scan must not serve one ayanamsa's dates to
+    another. This birth instant is the worst case: Raman and Lahiri agree
+    on the Moon's and Saturn's signs, so the ayanamsa name is the only
+    thing telling the two cache entries apart - which is why `_spans`
+    takes it despite never reading it."""
+    from kundali.sadesati import _raw_spans
+    args = ("C3", "1993-11-26", "22:03", "Asia/Kolkata",
+            14.6197, 74.8354, "Sirsi")
+    raman, lahiri = cast_natal(*args, "raman"), cast_natal(*args, "lahiri")
+    assert raman.jd == lahiri.jd
+    assert raman.sign_idx_of("Moon") == lahiri.sign_idx_of("Moon")
+    assert raman.sign_idx_of("Saturn") == lahiri.sign_idx_of("Saturn")
+
+    spans_r, spans_l = _raw_spans(raman), _raw_spans(lahiri)
+    assert spans_r != spans_l                   # ~12 days apart, not shared
+    assert _raw_spans(raman) == spans_r         # and stable either way round
+    assert _raw_spans(lahiri) == spans_l

@@ -83,6 +83,17 @@ The package is a layered pipeline: ephemeris → pure computation → rendering.
   Swiss Ephemeris' sidereal mode is process-global — a concurrent
   lahiri request would otherwise poison a raman one. Keep new entry
   points inside that lock.
+- `sadesati._spans` memoises the 90-year Saturn ingress scan, which
+  dominated every render (a chart summary was 2.3s, of which 2.25s was
+  this, scanned twice). It is keyed on the birth instant **and the
+  ayanamsa name**, which the scan body never reads — the body reads the
+  process-global sidereal mode the caller just set from it, so dropping
+  the name from the key silently serves one ayanamsa's dates to another.
+  A test pins that. `_raw_spans` re-sets that mode on hits as well as
+  misses, so a cached call leaves the process exactly as a fresh one
+  would. Cache derived-from-the-chart work this way rather than caching
+  a whole payload: the reports mix natal values, which never change,
+  with as-of-today ones, which must not be frozen.
 - **The web app is called Janma Kundali; the package and commands are
   not.** (It was called Jataka until v1.5 — that name should not come
   back anywhere.) "Janma Kundali" is the display name only: `<title>`,

@@ -2,8 +2,14 @@
 natal Moon: the three Sade Sati phases plus Kantaka (4th) and Ashtama
 (8th) Shani. Cross-validated against an independent commercial report
 (phase-change dates agreed within ~2 days).
+
+The 90-year Saturn ingress scan behind these tables is the single most
+expensive computation in the project - it dominates a report render -
+and it depends only on the birth instant, so `_spans` memoises it.
 """
 from __future__ import annotations
+
+from functools import lru_cache
 
 from . import ephemeris as eph
 from .model import Chart, SIGNS
@@ -62,12 +68,19 @@ NAVIGATION = (
     "classical reading, what was not load-bearing.")
 
 
-def _raw_spans(natal: Chart, years: int = 90):
-    """[(start_jd, end_jd, sign_idx, phase_offset)] for sensitive spans."""
-    eph.set_ayanamsa(natal.ayanamsa_name)   # swe sid-mode is global state
-    moon_sign = natal.sign_idx_of("Moon")
-    jd0, jd1 = natal.jd, natal.jd + years * 365.25
-    spans = [(jd0, natal.sign_idx_of("Saturn"))]
+@lru_cache(maxsize=256)
+def _spans(ayanamsa: str, jd0: float, moon_sign: int, saturn_sign: int,
+           years: int):
+    """The scan itself, keyed by everything that can move its result.
+
+    `ayanamsa` is never read here - it is in the signature because the
+    ingress scan reads Swiss Ephemeris' process-global sidereal mode,
+    which the caller has just set from it. Drop it from the key and a
+    Lahiri chart would serve a Raman chart's dates (~13 days out); it is
+    load-bearing, not dead weight.
+    """
+    jd1 = jd0 + years * 365.25
+    spans = [(jd0, saturn_sign)]
     spans += [(jd, to) for jd, _, to in eph.sign_ingresses("Saturn", jd0, jd1)]
     out = []
     for i, (start, sign) in enumerate(spans):
@@ -75,7 +88,16 @@ def _raw_spans(natal: Chart, years: int = 90):
         off = (sign - moon_sign) % 12
         if off in PHASES:
             out.append((start, end, sign, off))
-    return out
+    return tuple(out)
+
+
+def _raw_spans(natal: Chart, years: int = 90):
+    """[(start_jd, end_jd, sign_idx, phase_offset)] for sensitive spans."""
+    eph.set_ayanamsa(natal.ayanamsa_name)   # swe sid-mode is global state
+    # Set the mode on every call, hit or miss: callers downstream of this
+    # one inherit it, so a cache hit must leave the process as a miss does.
+    return _spans(natal.ayanamsa_name, natal.jd, natal.sign_idx_of("Moon"),
+                  natal.sign_idx_of("Saturn"), years)
 
 
 def murti(natal: Chart, ingress_jd: float) -> tuple[str, str]:
