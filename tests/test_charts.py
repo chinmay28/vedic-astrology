@@ -329,6 +329,57 @@ def test_timeline_guidance_covers_every_mahadasha(c1, c3):
     assert "Venus, lord of Taurus" in ketu["text"]
 
 
+def test_week_bounds_always_start_on_monday():
+    from datetime import datetime, timedelta
+    from kundali.weekly import week_bounds
+    for day in range(14):                       # a fortnight of as-of dates
+        asof = datetime(2026, 7, 27) + timedelta(days=day)
+        mon, nxt = week_bounds(asof)
+        assert mon.weekday() == 0 and mon.hour == 0
+        assert nxt - mon == timedelta(days=7)
+        assert mon <= asof < nxt
+
+
+def test_week_outlook_reads_the_week_containing_the_asof_date(c3):
+    from datetime import datetime
+    from kundali.weekly import GOCHARA_GOOD, week_outlook
+    w = week_outlook(c3, datetime(2026, 7, 29))          # a Wednesday
+    assert (w["from"], w["to"]) == ("27 Jul 2026", "02 Aug 2026")
+    assert [d["day"] for d in w["days"]][:2] == ["Monday", "Tuesday"]
+    assert [d["when"] for d in w["days"]] == ["past", "past", "today"] \
+        + ["ahead"] * 4
+    # the Moon walks forward: never more than a sign per day, never back
+    houses = [d["from_moon"] for d in w["days"]]
+    assert all((b - a) % 12 in (0, 1, 2) for a, b in zip(houses, houses[1:]))
+    # gochara grades follow the classical table, counted from the Moon
+    for d in w["days"]:
+        good = d["from_moon"] in GOCHARA_GOOD["Moon"]
+        assert d["grade"] == ("favourable" if good else
+                              "testing" if d["from_moon"] == 8 else "quiet")
+    for t in w["transits"]:
+        assert t["body"] != "Moon"               # the Moon has its own table
+        assert 1 <= t["from_moon"] <= 12 and 0 <= t["sav"] <= 56
+    assert w["headline"] and w["themes"] and w["cautions"]
+    assert w["dasha"]["md"] == "Moon" and w["dasha"]["ad"] == "Moon-Mercury"
+
+
+def test_week_outlook_flags_chandrashtama(c3):
+    """The 8th-from-Moon day is the one classical caution that must never
+    be silently dropped."""
+    from datetime import datetime, timedelta
+    from kundali.weekly import week_outlook
+    found = []
+    for wk in range(5):                          # some week has one - always
+        w = week_outlook(c3, datetime(2026, 1, 5) + timedelta(days=7 * wk))
+        found += [d for d in w["days"] if d["from_moon"] == 8]
+        if found:
+            assert all(d["grade"] == "testing" for d in found)
+            assert all("chandrashtama" in d["note"] for d in found)
+            assert any("chandrashtama" in c for c in w["cautions"])
+            return
+    pytest.fail("no chandrashtama day in five consecutive weeks")
+
+
 def test_timeline_guidance_without_an_asof_date_marks_nothing_running(c1):
     """The PDF path may be built with no as-of date - no era is 'now' then."""
     from kundali.dasha_now import timeline_guidance

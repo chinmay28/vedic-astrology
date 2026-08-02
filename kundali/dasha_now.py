@@ -82,6 +82,14 @@ def _tone(c: dict) -> str:
     return "mixed"
 
 
+def tone_of(natal: Chart, planet: str,
+            vimsho: dict[str, float] | None = None) -> str:
+    """'strong' / 'mixed' / 'challenged' for a period lord - the one-word
+    reading other modules (weekly.py) overlay their own findings on."""
+    vim = vimshopaka(natal) if vimsho is None else vimsho
+    return _tone(lord_condition(natal, planet, vim))
+
+
 def age_note(natal: Chart, jd_asof: float) -> str | None:
     """Child charts must not get adult template guidance - the classical
     convention reads a minor's periods through development, health and

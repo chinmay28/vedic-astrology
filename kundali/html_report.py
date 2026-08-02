@@ -26,6 +26,7 @@ from .model import (Chart, HOUSE_SIGNIFICATIONS, SEVEN_GRAHAS, SIGNS,
                     SIGN_LORD, dignity, nakshatra_of, sign_of)
 from .varga import navamsa_chart, vargottama
 from .varshaphal import cast_varsha
+from .weekly import week_outlook
 
 _CSS = """
 :root{--bg:#0e1124;--ink:#ece9df;--muted:#9698bd;--gold:#c9a063;
@@ -172,6 +173,35 @@ def build_html(natal: Chart, varsha_years: list[int], out_path: str, asof=None) 
                  + f"<p>{escape(g['text'])}</p>")
 
     if asof is not None:
+        w = week_outlook(natal, asof)
+        h.append(f"<h2>The Week Ahead - {escape(w['label'])}</h2>"
+                 + _g("week")
+                 + f"<p>{escape(w['headline'])}</p>"
+                 + f'<p class="sub">{escape(w["dasha"]["text"])}</p>')
+        for c in w["dasha"]["changes"]:
+            h.append('<div class="note">' + escape(c["date"]) + ": "
+                     + escape(c["what"]) + ".</div>")
+        h.append("<h3>Day by day (the transit Moon)</h3>")
+        h.append(_tbl(["Day", "Moon in", "From Moon", "Grade",
+                       "What it carries"],
+                      [[f"{d['day'][:3]} {d['date']}", d["moon_sign"],
+                        str(d["from_moon"]), d["grade"], d["note"]]
+                       for d in w["days"]]))
+        for title, items in (("Lean into", w["themes"]),
+                             ("Hold lightly", w["cautions"])):
+            h.append(f"<h3>{title}</h3><ul>"
+                     + "".join(f"<li>{escape(x)}</li>" for x in items)
+                     + "</ul>")
+        h.append("<h3>Transits this week</h3>")
+        h.append(_tbl(["Graha", "Sign", "From Moon", "From Lagna", "SAV",
+                       "Reading"],
+                      [[t["body"] + (" (R)" if t["retro"] else ""),
+                        t["sign"], str(t["from_moon"]), str(t["from_lagna"]),
+                        str(t["sav"]),
+                        t["grade"] + (f"; {t['ingress']}" if t["ingress"]
+                                      else "")]
+                       for t in w["transits"]]))
+
         md, ad, pad, next_ad, next_md = locate(natal, jd_asof)
         vim = vimshopaka(natal)
         h.append("<h2>Dasha Now &amp; Next</h2>" + _g("dashanow"))

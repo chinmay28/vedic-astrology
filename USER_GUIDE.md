@@ -124,6 +124,24 @@ occupy and through the lord of that sign. The 'Dasha Now & Next'
 section (printed when an as-of date is given) then zooms in on the
 running MD/AD/PD for that one date.
 
+**The Week Ahead** (also as-of driven; the first, folded section of the
+GUI's Dasha tab) drops one more level, to the Monday-to-Sunday week
+containing that date. It is classical *gochara*: every transit counted
+from your natal **Moon**, graded by the standard favourable-house table
+(3/6/10/11 for the Sun, 3/6/11 for Mars, Saturn and the nodes,
+2/5/7/9/11 for Jupiter, and so on), and weighted by the Ashtakavarga
+bindus of the sign being transited — 30+ is strong ground, 24 or fewer
+thin. The day table follows the transit Moon, which changes sign every
+2–3 days: days in the 1st, 3rd, 6th, 7th, 10th or 11th from your natal
+Moon carry outward moves best, and the 8th — *chandrashtama* — is the
+day the tradition says to keep light. Vedha, the obstruction rule that
+cancels some transit results, is deliberately not applied.
+
+Read it under the dasha, never over it: the dasha says which promise is
+switched on, the week only says what the weather is while it runs. A
+favourable week inside a strained period is a good week for that
+period's work, not a different life.
+
 ## 7. The Twelve Houses table
 
 For each house: its sign, occupants, where its **lord** went, and its
