@@ -5,7 +5,10 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#0e1124">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<!-- Not black-translucent: iOS then sizes the web view as if the status bar
+     were still there but draws it from the top of the screen, so `bottom: 0`
+     stops one status bar short and the tab bar floats above a dead strip. -->
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
 <meta name="apple-mobile-web-app-title" content="Janma Kundali">
 <title>Janma Kundali</title>
 <link rel="manifest" href="/manifest.webmanifest">
