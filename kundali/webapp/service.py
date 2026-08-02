@@ -36,7 +36,7 @@ from ..panchanga import avakahada, karana, tithi, vara, yoga as sy_yoga
 from ..sadesati import (IMPACTS, NAVIGATION, PHASES, current_status,
                         lifetime_table, murti, severity_profile)
 from ..varga import navamsa_chart, shodashavarga_table, vargottama, vimshopaka
-from ..varshaphal import cast_varsha
+from ..varshaphal import cast_varsha, outlook as varsha_outlook
 from ..weekly import week_outlook
 
 _LOCK = threading.RLock()
@@ -52,9 +52,17 @@ def cast(rec: dict) -> Chart:
                       rec.get("place") or "", rec.get("ayanamsa") or "raman")
 
 
-def years_of(rec: dict) -> list[int]:
+def years_of(rec: dict, asof: datetime | None = None) -> list[int]:
+    """The varsha years to cast: the record's own, or - when it names
+    none - the current year and the next one, which is what someone
+    opening a chart wants to read. `asof` (not the clock) decides which
+    year is current, so a report re-rendered for a past date stays
+    reproducible."""
     raw = (rec.get("varsha_years") or "").strip()
-    return [int(y) for y in re.split(r"[,\s]+", raw) if y] if raw else []
+    if raw:
+        return [int(y) for y in re.split(r"[,\s]+", raw) if y]
+    year = (asof or datetime.now()).year
+    return [year, year + 1]
 
 
 def _asof_dt(asof: str | None) -> datetime:
@@ -188,6 +196,7 @@ def _varsha(natal: Chart, years: list[int], jd_now: float) -> list[dict]:
             "day_birth": v.day_birth,
             "candidates": [{"role": r, "planet": p} for r, p in v.candidates],
             "mudda": [_period(p, natal.tz, jd_now) for p in v.mudda],
+            "outlook": varsha_outlook(natal, v),
             "north": north_svg(v.chart)})
     return out
 
@@ -269,7 +278,7 @@ def summary(rec: dict, asof: str | None = None) -> dict:
                      "shifts": [{"planet": p, "whole_sign": ws, "chalit": bc}
                                 for p, ws, bc in shifts(natal)]},
             "sadesati": _sadesati(natal, jd_now),
-            "varsha": _varsha(natal, years_of(rec), jd_now),
+            "varsha": _varsha(natal, years_of(rec, asof_dt), jd_now),
             "guidance": dict(GUIDANCE),
         }
 
@@ -281,7 +290,7 @@ def pdf_bytes(rec: dict, years: list[int] | None = None,
     from ..report import build_report
     with _LOCK:
         natal = cast(rec)
-        yrs = years if years is not None else years_of(rec)
+        yrs = years if years is not None else years_of(rec, _asof_dt(asof))
         with tempfile.TemporaryDirectory(prefix="kundali_web_") as work:
             out = os.path.join(work, "report.pdf")
             build_report(natal, yrs, out, work_dir=work,
@@ -295,7 +304,7 @@ def html_bytes(rec: dict, years: list[int] | None = None,
     from ..html_report import build_html
     with _LOCK:
         natal = cast(rec)
-        yrs = years if years is not None else years_of(rec)
+        yrs = years if years is not None else years_of(rec, _asof_dt(asof))
         with tempfile.TemporaryDirectory(prefix="kundali_web_") as work:
             out = os.path.join(work, "report.html")
             build_html(natal, yrs, out, asof=_asof_dt(asof))

@@ -101,7 +101,7 @@ Or without installing: `python -m kundali <same flags>`.
 | `--tz` | IANA zone name (`Asia/Kolkata`, `America/Los_Angeles`, ...) |
 | `--lat --lon` | Decimal degrees, north/east positive |
 | `--ayanamsa` | `raman` (default) or `lahiri` |
-| `--varsha` | Calendar years for annual charts (0+ years; age-0 is skipped) |
+| `--varsha` | Calendar years for annual charts (age-0 is skipped). Omit it for the current year and the next; pass it with no years for none |
 | `--out` | Output PDF path |
 
 Coordinates are an explicit input on the command line by design —
@@ -157,10 +157,10 @@ served straight from `kundali/webapp/static/`.
 | Places | Saved coordinates, searchable; pick one on the chart form instead of re-typing a birthplace |
 | Snapshot | Lagna, rashi, nakshatra, input verification, panchanga, avakahada, yogas |
 | Charts | North / South / D-9 diagrams (the same SVG geometry the PDF uses), positions, drishti, Bhav Chalit |
-| Dasha | The week ahead (gochara, day by day — folded away by default, with week-stepping arrows), running MD/AD/PD with progress, rule-based navigation guidance, full Vimshottari timeline, per-mahadasha navigation for every era of the cycle, varshaphala |
+| Dasha | The week ahead (gochara day by day, with what to do about it — folded away by default, with week-stepping arrows), running MD/AD/PD with progress, rule-based navigation guidance, full Vimshottari timeline, per-mahadasha navigation for every era of the cycle, varshaphala with a per-year outlook and suggestions |
 | Strength | SAV bar chart with the 30/24-bindu thresholds, BAV table, Vimshopaka, Shodashavarga, Maitri, Avasthas |
 | Shani | Sade Sati severity grading, current/next phase with Murti, lifetime table |
-| Report | **PDF download**, single-file HTML, JSON, positions CSV, dasha CSV — with an as-of date and varsha years you pick on the page |
+| Report | **PDF download**, single-file HTML, JSON, positions CSV, dasha CSV — with an as-of date and varsha years you pick on the page (blank means this year and next) |
 | Data | Backups as JSON / CSV / the raw `kundali.sqlite`, plus JSON restore |
 
 Reports downloaded from the GUI are produced by `report.py` and

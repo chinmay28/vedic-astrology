@@ -142,6 +142,16 @@ switched on, the week only says what the weather is while it runs. A
 favourable week inside a strained period is a good week for that
 period's work, not a different life.
 
+**What to do with it** turns that reading into scheduling: which days
+carry a signing, an interview or an apology best; which day to keep
+clear; which stretch of the week suits paperwork, which suits hard
+physical work, and which asks you to slow down on the road or hold a
+purchase. Each line comes from one graha's classical counsel, sharpened
+by the bindus of the sign it is transiting. They are suggestions about
+posture, not forecasts of events — where one disagrees with your own
+judgement, the tradition's own advice is to wait for a second
+indicator.
+
 ## 7. The Twelve Houses table
 
 For each house: its sign, occupants, where its **lord** went, and its
@@ -175,8 +185,18 @@ climate. Elements:
   Rahu/Saturn periods the demanding ones — always modulated by those
   planets' condition in the varsha chart.
 
-Age 0 has no varsha chart — the natal chart itself governs the first
-year.
+* **The year's outlook, themes and suggestions** — those same rules,
+  applied: the natal house rising sets the frame, the Muntha's house and
+  grade the headline, the Muntha lord's and year-lord's condition in the
+  annual chart the tone, and each Mudda stretch is graded by *its* lord's
+  condition there. That grading is what makes one stretch the place to
+  put a deliberate move and the next one a place to hold steady, which
+  is what the suggestions say. Sade Sati running at the pravesh is
+  called out, and it outweighs the annual chart.
+
+Unless you name the years yourself, the current year and the next one
+are cast — the two anyone actually reads. Age 0 has no varsha chart:
+the natal chart itself governs the first year.
 
 ## 9. Transit calendar & Sade Sati
 

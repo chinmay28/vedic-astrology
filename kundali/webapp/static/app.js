@@ -132,7 +132,13 @@ function fail(err) {
      <button class="btn" onclick="location.reload()">Reload</button>`);
 }
 
-function setTitle(t) { $('#title').textContent = t; }
+/* The app bar always reads "Janma Kundali" - this names the view under
+   it, and says nothing on the charts list, where the app name is the
+   whole answer. */
+function setTitle(t) {
+  $('#subtitle').textContent = (t === 'Janma Kundali' || t === 'Loading…')
+    ? '' : t;
+}
 
 /* The two top-level collections share the bottom bar the chart view uses,
    so "where am I" reads the same everywhere. */
@@ -899,6 +905,7 @@ function weekCard(w, guide) {
         <tr><th>Day</th><th>Moon</th><th class="num">From Moon</th>
             <th>Grade</th></tr>${days}</table></div>
       <ul class="week-list">${dayNotes}</ul>
+      <h3>What to do with it</h3>${list(w.suggestions)}
       <h3>Lean into</h3>${list(w.themes)}
       <h3>Hold lightly</h3>${list(w.cautions)}
       <h3>Transits this week</h3>${transits}
@@ -941,15 +948,24 @@ function tabDasha(s) {
     </details>`;
   }).join('');
 
+  const bullets = (items) => `<ul class="week-list">${
+    items.map((x) => `<li>${esc(x)}</li>`).join('')}</ul>`;
   const varsha = s.varsha.length ? card('Tajika varshaphala',
     s.varsha.map((v) => `
       <h3>${v.year} · age ${v.age}</h3>
       <p class="small muted mono">Pravesh ${esc(v.pravesh)} · Lagna ${esc(v.lagna)}</p>
       <p class="small">Muntha in ${esc(v.muntha_sign)} — house ${v.muntha_house}
          (${esc(v.grade)}), lord ${esc(v.muntha_lord)}</p>
+      <p>${esc(v.outlook.text)}</p>
+      <h3>The year's themes</h3>${bullets(v.outlook.themes)}
+      <h3>Suggestions</h3>${bullets(v.outlook.suggestions)}
       <div class="diagram">${v.north}</div>
-      <details><summary>Mudda dasha</summary>${table(['Lord', 'From', 'To'],
-        v.mudda.map((p) => [p.lord, p.from, p.to]))}</details>`).join('')
+      <details><summary>Mudda dasha — month by month</summary>
+        ${table(['Lord', 'From', 'To', 'Stretch'], v.outlook.months.map(
+          (m) => [m.lord, m.from, m.to, m.strength]))}
+        ${bullets(v.outlook.months.filter((m) => m.days >= 3)
+          .map((m) => `${m.from} – ${m.to}: ${m.note}`))}
+      </details>`).join('')
     + hint(s.guidance.varshaphal)) : '';
 
   return weekCard(s.week, s.guidance.week)
@@ -1028,8 +1044,11 @@ function tabReport(s) {
       <label for="r-asof">As-of date (drives “Dasha now” and Sade Sati)</label>
       <input id="r-asof" type="date" value="${esc(s.asof)}">
       <label for="r-varsha">Varshaphala years for the report</label>
-      <input id="r-varsha" value="${esc(s.chart.varsha_years || '')}"
+      <input id="r-varsha" value="${esc(s.chart.varsha_years
+             || s.varsha.map((v) => v.year).join(' '))}"
              inputmode="numeric" placeholder="2026 2027">
+      <p class="hint">A chart that names no years gets this year and the
+         next; type your own to override.</p>
       <button class="btn small" id="r-apply" style="margin:10px 0 16px">
         Recompute this view</button>
       <button class="btn primary" id="r-pdf">⤓ PDF report</button>
@@ -1175,6 +1194,7 @@ function wireDevBadge() {
 
 /* ---------------------------------------------------------------- boot */
 $('#back').onclick = () => history.back();
+$('#brand').onclick = () => go('/');
 wireDevBadge();
 showVersion();
 window.addEventListener('hashchange', route);

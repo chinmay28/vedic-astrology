@@ -125,7 +125,14 @@ GUIDANCE: dict[str, str] = {
         "Muntha's house and grade (the headline), the year-lord's "
         "condition (the tone), then the Mudda dasha (the month-by-month "
         "calendar). An adverse Muntha with a well-placed Muntha lord is "
-        "substantially rescued."),
+        "substantially rescued. The outlook and suggestions under each "
+        "year apply exactly those rules - each Mudda stretch is graded "
+        "by its lord's condition in that year's chart, which is what "
+        "makes one month a good place for a deliberate move and the "
+        "next a place to hold steady. Unless a chart names its own "
+        "years, the current one and the next are cast. The annual chart "
+        "never outranks the dasha: it says how the running period lands "
+        "in these twelve months, not what the period is."),
     "transits": (
         "Slow-mover ingresses during the report window, with the natal "
         "house each one activates. Classical gochara counts houses from "
