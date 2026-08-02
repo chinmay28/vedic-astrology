@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Print the version this checkout would build as.
 
-    scripts/version.py            ->  1.5.14
-    scripts/version.py --patch    ->  14
+    scripts/version.py            ->  1.0.42
+    scripts/version.py --patch    ->  42
 
 MAJOR.MINOR come from kundali/version.py; the patch is the commit count,
 so every commit is a patch release. The installers use --patch to stamp
