@@ -110,14 +110,15 @@ function go(hash) { location.hash = hash; }
 async function route() {
   const path = location.hash.replace(/^#\/?/, '');
   $('#tabbar').hidden = true;
-  view.classList.remove('has-tabs');
+  $('#fab').hidden = true;
+  view.classList.remove('has-tabs', 'has-fab');
   $('#bar-action').hidden = true;
   $('#back').hidden = path === '';
   for (const [re, fn] of routes) {
     const m = path.match(re);
     if (m) {
       try { await fn(m[1]); } catch (err) { fail(err); }
-      window.scrollTo(0, 0);
+      view.scrollTop = 0;
       return;
     }
   }
@@ -148,6 +149,17 @@ function homeTabs(active) {
     const target = HOME_TABS.find((t) => t[0] === b.dataset.go)[3];
     b.onclick = () => go(target);
   });
+}
+
+/* The add button belongs to the shell, not to the view it acts on: inside
+   the scrolling pane it would scroll away with the list. Every route starts
+   with it hidden, so a view that wants it says so. */
+function showFab(label, target) {
+  const fab = $('#fab');
+  fab.hidden = false;
+  view.classList.add('has-fab');
+  fab.setAttribute('aria-label', label);
+  fab.onclick = () => go(target);
 }
 
 function dataAction() {
@@ -181,9 +193,9 @@ async function home() {
       <p>No charts saved yet.</p>
       <p class="small">Add a birth date, time and place — the server keeps
          them in one SQLite file that every device you open this on shares.</p>
-    </div>`) + `<button class="fab" id="add" aria-label="New chart">+</button>`;
+    </div>`);
 
-  $('#add').onclick = () => go('/new');
+  showFab('New chart', '/new');
   view.querySelectorAll('.list-card').forEach((el) => {
     el.onclick = () => go('/chart/' + el.dataset.id);
   });
@@ -241,9 +253,9 @@ async function placesView() {
       <p class="small">Save the coordinates you keep re-typing — a
         birthplace, where you live now — and pick them from the chart
         form instead of looking them up again.</p>
-    </div>`) + `<button class="fab" id="add" aria-label="New place">+</button>`;
+    </div>`);
 
-  $('#add').onclick = () => go('/places/new');
+  showFab('New place', '/places/new');
   view.querySelectorAll('.list-card').forEach((el) => {
     el.onclick = () => go(`/places/${el.dataset.id}/edit`);
   });
@@ -750,7 +762,7 @@ async function chart(id, asof) {
       state.tab = b.dataset.tab;
       tabbar.querySelectorAll('button').forEach((x) => x.classList.toggle('on', x === b));
       renderTab();
-      window.scrollTo(0, 0);
+      view.scrollTop = 0;
     };
   });
   renderTab();

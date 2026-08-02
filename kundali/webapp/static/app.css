@@ -31,13 +31,32 @@ html, body {
   overscroll-behavior-y: none;
 }
 
+/* The app shell, as in CountRoster: the screen *is* the shell, the app bar
+   and the tab bar are in-flow children the flex column pins to its top and
+   bottom, and `main` is the only thing that scrolls. Nothing is anchored
+   with `position: fixed`, because on an installed iOS PWA the layout
+   viewport and the visible one do not agree - `bottom: 0` then sits a status
+   bar's height above the real bottom, leaving the tab bar floating over a
+   dead strip. Height comes from the *large* viewport unit: it is the full
+   screen and stays put across keyboard show/dismiss and browser toolbar
+   collapse, which `100%` and `dvh` do not. */
+body {
+  position: relative;
+  height: 100vh;  /* fallback for engines without the large-viewport unit */
+  height: 100lvh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
 h1, h2, h3 { font-family: Georgia, "Times New Roman", serif; font-weight: 400; }
 
 a { color: var(--gold); }
 
 /* ---------------------------------------------------------- app bar */
 .bar {
-  position: sticky; top: 0; z-index: 20;
+  /* Top of the shell, so it never scrolls and never needs to stick. */
+  position: relative; z-index: 20; flex: none;
   display: flex; align-items: center; gap: 10px;
   height: calc(var(--bar-h) + env(safe-area-inset-top, 0px));
   padding: env(safe-area-inset-top, 0px) 12px 0;
@@ -71,7 +90,7 @@ a { color: var(--gold); }
 
 /* Tap the badge: the maker's mark, full screen, then it gets out of the way. */
 .dev-flash {
-  position: fixed; inset: 0; z-index: 60; display: grid; place-content: center;
+  position: absolute; inset: 0; z-index: 60; display: grid; place-content: center;
   gap: 18px; justify-items: center; background: rgba(8, 9, 20, .93);
   animation: fade-in 160ms ease;
 }
@@ -102,11 +121,24 @@ a { color: var(--gold); }
 }
 .icon-btn:active { background: var(--panel-2); }
 
+/* The one scrolling pane. `min-height: 0` is what lets a flex child shrink
+   below its content and scroll; `overflow-x: hidden` because asking for
+   `overflow-y: auto` makes the used overflow-x `auto` too, and a wide table
+   would then drag the whole pane sideways instead of scrolling in its own
+   `.scroll-x` box. */
 main {
+  flex: 1; min-height: 0;
+  overflow-y: auto; overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-y: contain;
   padding: 14px 14px calc(28px + var(--safe-b));
-  max-width: 900px; margin: 0 auto;
+  width: 100%; max-width: 900px; margin: 0 auto;
 }
-main.has-tabs { padding-bottom: calc(var(--tab-h) + 24px + var(--safe-b)); }
+/* With the tab bar in flow it already covers the home indicator, so the
+   trailing room is only what the floating button needs to not sit on the
+   last card - and only on the views that have one. */
+main.has-tabs { padding-bottom: 24px; }
+main.has-fab { padding-bottom: 88px; }
 
 /* ------------------------------------------------------------ cards */
 .card {
@@ -216,9 +248,11 @@ input:focus, select:focus, textarea:focus {
 .chip.warn { color: var(--warn); }
 .chip.bad { color: var(--bad); }
 
+/* Floats against the shell, not the viewport, and clears the tab bar rather
+   than sitting on top of it (it only ever appears on the two tabbed lists). */
 .fab {
-  position: fixed; right: 18px; z-index: 25;
-  bottom: calc(18px + var(--safe-b));
+  position: absolute; right: 18px; z-index: 25;
+  bottom: calc(var(--tab-h) + var(--safe-b) + 16px);
   width: 58px; height: 58px; border-radius: 50%; border: none;
   background: linear-gradient(180deg, var(--gold), #b58b4e);
   color: #221a0c; font-size: 30px; line-height: 1; cursor: pointer;
@@ -226,8 +260,10 @@ input:focus, select:focus, textarea:focus {
 }
 
 /* ----------------------------------------------------------- tabbar */
+/* Bottom of the shell, in normal flow - see the `body` rule for why it is
+   not pinned there with `position: fixed`. */
 .tabbar {
-  position: fixed; left: 0; right: 0; bottom: 0; z-index: 22;
+  position: relative; z-index: 22; flex: none;
   display: flex; overflow-x: auto; scrollbar-width: none;
   background: rgba(19, 22, 44, .97); backdrop-filter: blur(8px);
   border-top: 1px solid var(--line);
@@ -298,7 +334,7 @@ details summary { cursor: pointer; color: var(--gold); font-size: 14px; padding:
 
 /* ------------------------------------------------------ toast/overlay */
 .toast {
-  position: fixed; left: 50%; transform: translateX(-50%); z-index: 40;
+  position: absolute; left: 50%; transform: translateX(-50%); z-index: 40;
   bottom: calc(24px + var(--safe-b) + var(--tab-h));
   max-width: 90vw; padding: 11px 16px; border-radius: 10px;
   background: #23264a; border: 1px solid var(--line);
@@ -306,7 +342,7 @@ details summary { cursor: pointer; color: var(--gold); font-size: 14px; padding:
 }
 .toast.err { border-color: #6b3733; color: #ffd9d4; }
 .overlay {
-  position: fixed; inset: 0; z-index: 50; display: grid; place-content: center;
+  position: absolute; inset: 0; z-index: 50; display: grid; place-content: center;
   gap: 14px; justify-items: center; background: rgba(14, 17, 36, .82);
   color: var(--muted);
 }
