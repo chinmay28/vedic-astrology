@@ -2,7 +2,7 @@
 
 The scheme is MAJOR.MINOR.PATCH, where MAJOR and MINOR are declared
 here and PATCH is the repository's commit count: every commit is a patch
-release, so `1.5.42` is the 42nd commit on the 1.5 line. Bump MINOR when
+release, so `1.0.42` is the 42nd commit on the 1.0 line. Bump MINOR when
 the app gains something worth naming, MAJOR when the data or deployment
 contract breaks.
 
@@ -30,7 +30,7 @@ import subprocess
 from pathlib import Path
 
 MAJOR = 1
-MINOR = 5
+MINOR = 0
 
 _ROOT = Path(__file__).resolve().parent.parent      # the checkout, if any
 
