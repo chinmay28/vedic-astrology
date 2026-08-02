@@ -266,6 +266,7 @@ async function placeForm(rec) {
   setTitle(rec ? 'Edit place' : 'New place');
   const [tzs, health] = [await ensureTimezones(), await ensureHealth()];
   const v = rec || { name: '', lat: '', lon: '', tz: '', notes: '' };
+  tzInit(v.tz, 'record');
 
   view.innerHTML = card(null, searchBox(health.geocoder) + `
     <label for="p-name">Place name</label>
@@ -281,9 +282,7 @@ async function placeForm(rec) {
     </div>
     <button class="btn small" id="p-here" style="margin-top:10px">
       ◎ Use this device's location</button>
-    <label for="p-tz">Timezone (optional, IANA)</label>
-    <input id="p-tz" list="tzlist" value="${esc(v.tz)}" autocapitalize="off"
-           autocomplete="off" spellcheck="false" placeholder="Asia/Kolkata">
+    <div id="tzbox"></div>
     <datalist id="tzlist">${tzs.map((t) => `<option value="${esc(t)}">`).join('')}</datalist>
     <label for="p-notes">Notes</label>
     <textarea id="p-notes" rows="2">${esc(v.notes)}</textarea>
@@ -292,18 +291,20 @@ async function placeForm(rec) {
       ${rec ? '<button class="btn danger" id="p-del">Delete place</button>' : ''}
     </div>`);
 
+  renderTz();
+  wireCoordTz('#p-lat', '#p-lon');
   wireSearch((hit) => {
     if (!$('#p-name').value.trim()) $('#p-name').value = hit.label;
     $('#p-lat').value = hit.lat;
     $('#p-lon').value = hit.lon;
-    if (hit.tz) $('#p-tz').value = hit.tz;
+    if (hit.tz) setTz(hit.tz, 'index');
     toast(`Filled from ${hit.label}`);
   });
   wireHere('#p-here', '#p-lat', '#p-lon');
 
   $('#p-save').onclick = async () => {
     const body = { name: $('#p-name').value, lat: $('#p-lat').value,
-                   lon: $('#p-lon').value, tz: $('#p-tz').value,
+                   lon: $('#p-lon').value, tz: tzValue(),
                    notes: $('#p-notes').value };
     try {
       if (rec) await api('/api/places/' + rec.id,
@@ -327,6 +328,124 @@ async function placeForm(rec) {
       go('/places');
     };
   }
+}
+
+/* ---------------------------------------------------------- timezone */
+/* The zone is a fact about the birthplace, so it is inferred rather than
+   asked for: a picked place brings its own, and typed coordinates get
+   looked up. It is still shown, always, with where it came from — a
+   chart cast in the wrong zone is wrong by hours, so this is the one
+   inference the user must be able to see and overrule. */
+const TZ_NOTES = { index: 'from the place index',
+                   place: 'from the saved place',
+                   coords: 'looked up from the birthplace',
+                   record: 'saved with this chart',
+                   manual: 'set by you' };
+
+/* Lookups are async and the user keeps typing, so every change to the
+   zone takes a ticket: a reply that is no longer the newest is dropped
+   rather than allowed to overwrite what someone just chose by hand. */
+let tzSeq = 0;
+
+function tzInit(value, source) {
+  tzSeq++;
+  state.tz = { value: value || '', source: value ? (source || 'record') : null,
+               editing: false, failed: null };
+  if (!value && !(state.health && state.health.tz_lookup)) {
+    state.tz.failed = 'lookup is off on this server';
+  }
+}
+
+function tzValue() {
+  const el = $('#tz-input');
+  return el ? el.value.trim() : state.tz.value;
+}
+
+function setTz(value, source) {
+  tzSeq++;
+  state.tz = { value: value || '', source, editing: false, failed: null };
+  renderTz();
+}
+
+/* Built once; every later change edits it in place. Re-rendering the
+   whole box would destroy the input mid-edit — and it is reached by
+   tabbing out of a coordinate field, which is exactly when a lookup
+   fires. */
+const TZ_BOX = `
+  <div class="tzline" id="tz-line"></div>
+  <div id="tz-edit" hidden>
+    <input id="tz-input" list="tzlist" autocapitalize="off"
+           autocomplete="off" spellcheck="false" placeholder="Asia/Kolkata">
+    <p class="hint">An IANA zone name. Historical DST is applied from it,
+      so this is the field that decides whether the chart is right.</p>
+  </div>`;
+
+function renderTz() {
+  const box = $('#tzbox');
+  if (!box) return;
+  if (!$('#tz-line')) box.innerHTML = TZ_BOX;
+
+  const t = state.tz;
+  const known = !!t.value;
+  const open = t.editing || (!known && !!t.failed);
+  const note = known ? (TZ_NOTES[t.source] || '')
+    : (t.failed || 'comes from the birthplace below');
+  const toggle = known || t.editing;         // nothing to toggle otherwise
+
+  const line = $('#tz-line');
+  line.className = 'tzline' + (!known && t.failed ? ' warn' : '');
+  line.innerHTML = `<span>Timezone</span>
+    <b>${known ? esc(t.value) : '—'}</b>
+    <span class="muted small">${esc(note)}</span>
+    ${toggle ? `<button type="button" class="linkish" id="tz-toggle">${
+      open ? 'Done' : 'Change'}</button>` : ''}`;
+
+  $('#tz-edit').hidden = !open;
+  const input = $('#tz-input');
+  if (document.activeElement !== input) input.value = t.value;
+
+  if (!toggle) return;
+  $('#tz-toggle').onclick = () => {
+    tzSeq++;                       // whatever a pending lookup says, this wins
+    if (open) {                                      // closing
+      const typed = tzValue();
+      if (typed) { t.value = typed; t.source = 'manual'; t.failed = null; }
+      t.editing = false;
+    } else {
+      t.editing = true;
+    }
+    renderTz();
+    if (state.tz.editing) $('#tz-input').focus();
+  };
+}
+
+/* Coordinates changed by hand: the zone follows them. */
+function wireCoordTz(latSel, lonSel) {
+  const attempt = async () => {
+    const lat = $(latSel).value.trim(), lon = $(lonSel).value.trim();
+    if (lat === '' || lon === '') return;
+    if (!(state.health && state.health.tz_lookup)) {
+      state.tz.failed = 'lookup is off on this server';
+      return renderTz();
+    }
+    const mine = ++tzSeq;
+    let failure;
+    try {
+      const out = await api(`/api/timezone?lat=${encodeURIComponent(lat)}`
+                            + `&lon=${encodeURIComponent(lon)}`);
+      if (mine !== tzSeq) return;              // superseded while in flight
+      if (out.tz) return setTz(out.tz, 'coords');
+      failure = out.reason || 'could not establish the zone';
+    } catch (err) {
+      failure = err.message;
+    }
+    if (mine !== tzSeq) return;
+    state.tz.failed = failure;
+    renderTz();
+  };
+  $(latSel).onchange = attempt;
+  $(lonSel).onchange = attempt;
+  return attempt;                    // callers may ask for it directly
 }
 
 /* ------------------------------------------------------- place lookup */
@@ -417,10 +536,12 @@ async function form(rec) {
   const tzs = await ensureTimezones();
   const health = await ensureHealth();
   const places = await ensurePlaces();
-  const guess = Intl.DateTimeFormat().resolvedOptions().timeZone;
-  const v = rec || { name: '', birth_date: '', birth_time: '', tz: guess,
+  const v = rec || { name: '', birth_date: '', birth_time: '', tz: '',
                      lat: '', lon: '', place: '', ayanamsa: 'raman',
                      varsha_years: '', notes: '' };
+  // Never the browser's zone: whoever is casting the chart is rarely
+  // standing where the birth happened.
+  tzInit(v.tz, 'record');
 
   const saved = places.length ? `
     <label for="f-saved">Saved place</label>
@@ -438,9 +559,6 @@ async function form(rec) {
       <div><label for="f-time">Local time</label>
         <input id="f-time" type="time" value="${esc(v.birth_time)}"></div>
     </div>
-    <label for="f-tz">Timezone (IANA — historical DST is applied)</label>
-    <input id="f-tz" list="tzlist" value="${esc(v.tz)}" autocapitalize="off"
-           autocomplete="off" spellcheck="false" placeholder="Asia/Kolkata">
     <datalist id="tzlist">${tzs.map((t) => `<option value="${esc(t)}">`).join('')}</datalist>
     <h3>Birthplace</h3>
     ${saved}
@@ -455,6 +573,7 @@ async function form(rec) {
       ◎ Use this device's location</button>
     <label for="f-place">Place label</label>
     <input id="f-place" value="${esc(v.place)}" placeholder="Sirsi, Karnataka, India">
+    <div id="tzbox"></div>
     <button class="btn small" id="f-keep" style="margin-top:10px">
       ☆ Save this birthplace to Places</button>
     <p class="hint">Whatever fills these boxes, the coordinates are what
@@ -475,11 +594,13 @@ async function form(rec) {
       ${rec ? '<button class="btn danger" id="f-del">Delete chart</button>' : ''}
     </div>`);
 
+  renderTz();
+  const tzFromCoords = wireCoordTz('#f-lat', '#f-lon');
   wireHere('#f-here', '#f-lat', '#f-lon');
   wireSearch((hit) => {
     $('#f-lat').value = hit.lat;
     $('#f-lon').value = hit.lon;
-    if (hit.tz) $('#f-tz').value = hit.tz;
+    if (hit.tz) setTz(hit.tz, 'index');
     if (!$('#f-place').value.trim()) $('#f-place').value = hit.label;
     toast(`Filled from ${hit.label}`);
   });
@@ -491,15 +612,16 @@ async function form(rec) {
       if (!p) return;
       $('#f-lat').value = p.lat;
       $('#f-lon').value = p.lon;
-      if (p.tz) $('#f-tz').value = p.tz;
       $('#f-place').value = p.name;
+      if (p.tz) setTz(p.tz, 'place');
+      else tzFromCoords();          // no zone stored: look it up
       toast(`Filled from ${p.name}`);
     };
   }
 
   $('#f-keep').onclick = async () => {
     const body = { name: $('#f-place').value.trim(), lat: $('#f-lat').value,
-                   lon: $('#f-lon').value, tz: $('#f-tz').value, notes: '' };
+                   lon: $('#f-lon').value, tz: tzValue(), notes: '' };
     if (!body.name) return toast('Give the place a label first', true);
     try {
       await api('/api/places', { method: 'POST', body: JSON.stringify(body) });
@@ -514,7 +636,7 @@ async function form(rec) {
   $('#f-save').onclick = async () => {
     const body = {
       name: $('#f-name').value, birth_date: $('#f-date').value,
-      birth_time: $('#f-time').value, tz: $('#f-tz').value,
+      birth_time: $('#f-time').value, tz: tzValue(),
       lat: $('#f-lat').value, lon: $('#f-lon').value,
       place: $('#f-place').value, ayanamsa: $('#f-ayan').value,
       varsha_years: $('#f-varsha').value, notes: $('#f-notes').value
@@ -527,6 +649,13 @@ async function form(rec) {
       toast('Saved');
       go('/chart/' + out.chart.id);
     } catch (err) {
+      // The server resolves a missing zone from the coordinates too; if
+      // it could not, put the field in front of the user rather than
+      // leaving them to guess what "timezone" meant.
+      if (/timezone/i.test(err.message)) {
+        state.tz.failed = 'not found for those coordinates';
+        renderTz();
+      }
       toast(err.message, true);
     } finally {
       busy(false);

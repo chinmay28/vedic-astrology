@@ -1,4 +1,4 @@
-"""geocode.py - optional city/town lookup for the place and chart forms.
+"""geocode.py - place lookup, and the timezone that comes with a place.
 
 Contract:
     * Stdlib only, and entirely optional. Typing coordinates in by hand
@@ -6,15 +6,24 @@ Contract:
       this exists so that saving "Sirsi, Karnataka" does not mean
       switching to a map app first.
     * Nothing leaves the machine unless someone types a name and presses
-      search. One outbound GET per search, to `$KUNDALI_GEOCODER`
-      (Open-Meteo's public GeoNames index by default). Set that variable
-      to `off` for an installation that must never reach the internet -
-      the GUI then hides the search box rather than offering something
-      that cannot work.
+      search, or saves a chart whose timezone is not known yet. One
+      outbound GET per lookup, to `$KUNDALI_GEOCODER` (Open-Meteo's
+      public GeoNames index by default). Set that variable to `off` for
+      an installation that must never reach the internet - the GUI then
+      asks for the coordinates and the zone, as it used to.
     * A result carries the IANA timezone as well as the coordinates,
-      because a birth chart cast in the wrong zone is wrong by hours.
+      because a birth chart cast in the wrong zone is wrong by hours -
+      which is the whole reason the timezone is inferred rather than
+      typed.
+    * **The zone is never guessed.** It comes from an index that knows
+      the political boundary, or it is reported as unknown and asked
+      for. Nearest-city-by-distance over the tz database's own
+      representative points looks tempting and is wrong where it matters
+      most: it puts every Indian birthplace in Asia/Colombo or
+      Asia/Karachi, both half an hour out. `timezone_at()` returns None
+      rather than a plausible lie.
     * Failures raise LookupError with a message meant for the user; the
-      caller turns that into an HTTP error. A search that cannot run
+      caller turns that into an HTTP error. A lookup that cannot run
       never blocks saving a place by hand.
 """
 from __future__ import annotations
@@ -24,23 +33,48 @@ import os
 import urllib.error
 import urllib.parse
 import urllib.request
+from zoneinfo import available_timezones
 
 DEFAULT_ENDPOINT = "https://geocoding-api.open-meteo.com/v1/search"
+# Same index, asked "which zone is this coordinate in?" - the answer is a
+# real IANA name resolved against timezone boundaries, not a guess.
+DEFAULT_TZ_ENDPOINT = "https://api.open-meteo.com/v1/forecast"
 SOURCE = "open-meteo (GeoNames)"
 TIMEOUT = 8                 # seconds; a phone gives up long before this
 MAX_RESULTS = 10
+_OFF = ("off", "none", "0", "false", "disabled")
 
 
 def endpoint() -> str | None:
     """The search URL, or None when lookup is switched off."""
     raw = os.environ.get("KUNDALI_GEOCODER", "").strip()
-    if raw.lower() in ("off", "none", "0", "false", "disabled"):
+    if raw.lower() in _OFF:
         return None
     return raw or DEFAULT_ENDPOINT
 
 
 def enabled() -> bool:
     return endpoint() is not None
+
+
+def timezone_endpoint() -> str | None:
+    """The coordinate -> zone URL, or None when it is switched off.
+    `KUNDALI_GEOCODER=off` seals the whole module: an installation that
+    must not reach the internet must not reach it for this either."""
+    if not enabled():
+        return None
+    raw = os.environ.get("KUNDALI_TZ_LOOKUP", "").strip()
+    if raw.lower() in _OFF:
+        return None
+    return raw or DEFAULT_TZ_ENDPOINT
+
+
+def timezone_source() -> str | None:
+    url = timezone_endpoint()
+    if url is None:
+        return None
+    return SOURCE if url == DEFAULT_TZ_ENDPOINT else urllib.parse.urlparse(
+        url).netloc or url
 
 
 def source() -> str | None:
@@ -88,6 +122,44 @@ def parse(payload: dict) -> list[dict]:
             "population": hit.get("population") or 0,
         })
     return rows
+
+
+def _fetch(url: str) -> dict | None:
+    """GET some JSON. None on any failure - callers must cope without."""
+    req = urllib.request.Request(url, headers={
+        "Accept": "application/json",
+        "User-Agent": "kundali-web (github.com/chinmay28/vedic-astrology)"})
+    try:
+        with urllib.request.urlopen(req, timeout=TIMEOUT) as res:
+            return json.loads(res.read().decode("utf-8", "replace"))
+    except (urllib.error.URLError, OSError, json.JSONDecodeError,
+            UnicodeDecodeError, ValueError):
+        return None
+
+
+def timezone_at(lat: float, lon: float) -> str | None:
+    """The IANA zone those coordinates sit in, or None if it cannot be
+    established. Never raises, and never guesses: an unknown zone must
+    surface as a question, not as a chart that is half an hour out."""
+    url = timezone_endpoint()
+    if url is None:
+        return None
+    try:
+        lat, lon = float(lat), float(lon)
+    except (TypeError, ValueError):
+        return None
+    if not (-90 <= lat <= 90 and -180 <= lon <= 180):
+        return None
+    query = urllib.parse.urlencode({
+        "latitude": round(lat, 4), "longitude": round(lon, 4),
+        "timezone": "auto", "forecast_days": 1, "current": "temperature_2m"})
+    payload = _fetch(f"{url}{'&' if '?' in url else '?'}{query}")
+    if not isinstance(payload, dict):
+        return None
+    name = str(payload.get("timezone") or "").strip()
+    # Only a name this machine can actually resolve is worth anything -
+    # the whole point is that zoneinfo applies the historical DST rules.
+    return name if name in available_timezones() else None
 
 
 def search(name: str, count: int = MAX_RESULTS) -> list[dict]:

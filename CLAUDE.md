@@ -138,13 +138,30 @@ The package is a layered pipeline: ephemeris → pure computation → rendering.
   binds 127.0.0.1 by default). Don't bolt on half of an auth system;
   if it ever needs one, it needs the whole thing.
 - Coordinates are explicit inputs by design and the CLI has no lookup at
-  all. The web app's **Places** tab (a `places` table in the same SQLite
-  file, no computation attached) and `webapp/geocode.py` are the one
-  exception, and a narrow one: a single outbound GET, only when someone
-  presses Search, only when `$KUNDALI_GEOCODER` is not `off`, and every
+  all - `--tz` stays required there. The web app's **Places** tab (a
+  `places` table in the same SQLite file, no computation attached) and
+  `webapp/geocode.py` are the one exception, and a narrow one: a single
+  outbound GET, only when someone searches or saves a chart whose zone is
+  not known yet, only when `$KUNDALI_GEOCODER` is not `off`, and every
   form still works with the lookup dead. Keep it that way - no background
-  lookups, no auto-geocoding on save, and never make a chart depend on
-  a network call.
+  lookups, and never make an already-saved chart depend on a network call.
+- **The timezone is inferred from the birthplace, never asked for and
+  never guessed.** A picked place or search hit brings its own zone;
+  typed coordinates get one from the index; `server._with_timezone`
+  resolves a missing zone once, on write, and stores it, so a lookup that
+  answers differently later cannot move a saved chart. When it cannot be
+  established the GUI shows the field again and the API returns 400.
+  Do not add an offline fallback: nearest representative city in the tz
+  database's own table - the only stdlib option - puts Sirsi in
+  Asia/Colombo and Mumbai in Asia/Karachi, both half an hour out, which
+  is the exact error class this tool exists to prevent. A test pins that
+  geocode.py never reads zone.tab.
+- The GUI shows the resolved zone and where it came from, with a Change
+  link. That is deliberate: it is the one inferred value a wrong answer
+  silently ruins a chart with, so it stays visible and overridable.
+  `renderTz()` updates the box in place - never re-render it wholesale,
+  because it is reached by tabbing out of a coordinate field (which
+  fires a lookup) and a replaced input eats what is being typed.
 - **Deliberately out of scope** (see README "Scope, honestly stated"):
   Shadbala, divisional charts beyond what varga.py implements, full
   Panchavargiya Bala. A partial implementation that emits numbers

@@ -161,6 +161,25 @@ input:focus, select:focus, textarea:focus {
 .search-row { align-items: stretch; }
 .search-row .btn { flex: 0 0 auto; width: auto; margin-top: 0; }
 
+/* The inferred timezone: shown, never asked for, always overridable. */
+.tzline {
+  display: flex; align-items: baseline; flex-wrap: wrap; gap: 6px;
+  margin: 14px 0 4px; padding: 10px 12px; border-radius: 10px;
+  background: var(--panel-2); border: 1px solid var(--line);
+  font-size: 13.5px;
+}
+.tzline > span:first-child {
+  font-size: 11px; letter-spacing: .1em; text-transform: uppercase;
+  color: var(--muted);
+}
+.tzline b { color: var(--gold); font-weight: 500; }
+.tzline.warn { border-color: #5a4020; }
+.linkish {
+  margin-left: auto; padding: 0; border: none; background: none;
+  color: var(--gold); font-size: 13px; text-decoration: underline;
+  cursor: pointer;
+}
+
 /* One hit from a place search: tap it to fill the coordinates in. */
 .pick {
   display: block; width: 100%; text-align: left; cursor: pointer;
