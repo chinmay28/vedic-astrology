@@ -195,11 +195,19 @@ def test_summary_dasha_and_ashtakavarga(summary):
     assert 0 < md["progress"] < 1
     assert sum(summary["ashtakavarga"]["sav"]) == 337
     assert len(summary["mahadashas"]) == 9
+    # one navigation entry per timeline row, same lords, same order
+    eras = summary["mahadasha_guidance"]
+    assert [e["lord"] for e in eras] == [m["lord"] for m
+                                         in summary["mahadashas"]]
+    assert [e["status"] for e in eras].count("running") == 1
+    assert next(e for e in eras if e["status"] == "running")["lord"] == "Moon"
+    assert all(e["text"] and e["timing"] for e in eras)
 
 
 def test_summary_carries_every_gui_section(summary):
     for key in ("verification", "panchanga", "positions", "diagrams",
                 "yogas", "aspects", "dasha_now", "mahadashas",
+                "mahadasha_guidance",
                 "ashtakavarga", "navamsa", "maitri", "avastha", "bhav",
                 "sadesati", "varsha", "guidance"):
         assert summary[key], f"missing section: {key}"

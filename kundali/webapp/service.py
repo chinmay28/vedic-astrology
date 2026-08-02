@@ -26,7 +26,7 @@ from ..bhav import bhav_table, shifts
 from ..cli import cast_natal
 from ..dasha import Period, antardashas, mahadashas
 from ..dasha_now import age_note, guidance_for, locate, lord_condition, \
-    sandhi_note
+    sandhi_note, timeline_guidance
 from ..diagrams import north_svg, south_svg
 from ..guidance import GUIDANCE
 from ..maitri import maitri_table
@@ -255,6 +255,7 @@ def summary(rec: dict, asof: str | None = None) -> dict:
                             "antardashas": [_period(a, natal.tz, jd_now)
                                             for a in antardashas(m)]}
                            for m in mds],
+            "mahadasha_guidance": timeline_guidance(natal, jd_now),
             "ashtakavarga": _ashtakavarga(natal),
             "navamsa": {"positions": _positions(nav),
                         "vargottama": vargottama(natal),

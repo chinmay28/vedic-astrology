@@ -12,7 +12,8 @@ from . import aspects, ephemeris as eph, yogas
 from .ashtakavarga import bav, sav
 from .avastha import avastha_table
 from .bhav import bhav_table, shifts
-from .dasha_now import age_note, guidance_for, locate, lord_condition, sandhi_note
+from .dasha_now import (age_note, guidance_for, locate, lord_condition,
+                        sandhi_note, timeline_guidance)
 from .guidance import GUIDANCE
 from .maitri import maitri_table
 from .varga import shodashavarga_table, vimshopaka
@@ -153,8 +154,24 @@ def build_html(natal: Chart, varsha_years: list[int], out_path: str, asof=None) 
                       [[f"{a.lord} / {a.sub}", eph.jd_to_date_str(a.start, natal.tz),
                         eph.jd_to_date_str(a.end, natal.tz)] for a in ads]))
 
+    jd_asof = eph.jd_from_local(asof, natal.tz) if asof is not None else None
+    h.append("<h2>Navigating Each Mahadasha</h2>" + _g("dashatimeline"))
+    for g in timeline_guidance(natal, jd_asof):
+        meta = [f"House {g['house']}", g["sign"]]
+        if g["dignity"] != "-":
+            meta.append(g["dignity"])
+        if g["score"]:
+            meta.append(f"Vimshopaka {g['score']}/20")
+        h.append(f"<h3>{escape(g['lord'])} Mahadasha - {escape(g['from'])} "
+                 f"to {escape(g['to'])}"
+                 + (" &middot; running" if g["status"] == "running" else "")
+                 + "</h3>"
+                 + '<p class="sub">'
+                 + " &middot; ".join(escape(m) for m in meta)
+                 + f" &mdash; {escape(g['timing'])}</p>"
+                 + f"<p>{escape(g['text'])}</p>")
+
     if asof is not None:
-        jd_asof = eph.jd_from_local(asof, natal.tz)
         md, ad, pad, next_ad, next_md = locate(natal, jd_asof)
         vim = vimshopaka(natal)
         h.append("<h2>Dasha Now &amp; Next</h2>" + _g("dashanow"))

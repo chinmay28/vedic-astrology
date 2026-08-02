@@ -113,6 +113,17 @@ Timing caveat: dasha dates inherit every input sensitivity — birth-time
 error and ayanamsa choice both shift them. If the Moon sits near a
 nakshatra boundary (see sandhi flags), treat all dates as +/- months.
 
+**Navigating each Mahadasha** follows the table: the same reading — the
+lord's natal house, dignity, Vimshopaka score and the aspects on it —
+applied to every era of the timeline, with the age span it covers and
+whether it has already run, is running now, or is still ahead. Read the
+past eras backwards, as a check on whether the chart describes the life
+so far; read the coming ones as ground to prepare rather than to act on.
+Rahu and Ketu own no sign, so their eras are read through the house they
+occupy and through the lord of that sign. The 'Dasha Now & Next'
+section (printed when an as-of date is given) then zooms in on the
+running MD/AD/PD for that one date.
+
 ## 7. The Twelve Houses table
 
 For each house: its sign, occupants, where its **lord** went, and its

@@ -18,7 +18,8 @@ from . import aspects, diagrams, ephemeris as eph, yogas
 from .ashtakavarga import bav, sav
 from .avastha import avastha_table
 from .bhav import bhav_table, shifts
-from .dasha_now import age_note, guidance_for, locate, lord_condition, sandhi_note
+from .dasha_now import (age_note, guidance_for, locate, lord_condition,
+                        sandhi_note, timeline_guidance)
 from .guidance import GUIDANCE
 from .maitri import maitri_table
 from .panchanga import avakahada, karana, tithi, vara, yoga as sy_yoga
@@ -116,7 +117,8 @@ def _houses_table(chart: Chart):
     return _table(rows, [20, 62, 108, 72, 220], fs=7.8)
 
 
-def _natal_section(natal: Chart, work_dir: str, window: tuple[float, float]):
+def _natal_section(natal: Chart, work_dir: str, window: tuple[float, float],
+                   jd_asof: float | None = None):
     n_img, s_img = diagrams.render(natal, work_dir, "natal")
     el = [Paragraph(f"Natal Chart - {natal.name}", H1),
           Paragraph(f"<b>Birth:</b> {natal.dt_local.strftime('%d %b %Y, %H:%M')} "
@@ -197,6 +199,17 @@ def _natal_section(natal: Chart, work_dir: str, window: tuple[float, float]):
                               eph.jd_to_date_str(pe, natal.tz)])
         el += [Paragraph("Pratyantardasha (month-scale, first ADs of window)", H3),
                _table(prows, [170, 100, 100], fs=7.6)]
+
+    el.append(Paragraph("Navigating Each Mahadasha", H2))
+    el.append(_guide("dashatimeline"))
+    for g in timeline_guidance(natal, jd_asof):
+        head = f"{g['lord']} Mahadasha - {g['from']} to {g['to']}"
+        if g["status"] == "running":
+            head += " (running)"
+        el.append(Paragraph(head, H3))
+        el.append(Paragraph(g["timing"], SMALL))
+        el.append(Paragraph(g["text"], BODY))
+
     d9 = navamsa_chart(natal)
     dn, ds = diagrams.render(d9, work_dir, "d9")
     el.append(Paragraph("Navamsa (D-9)", H2))
@@ -442,7 +455,8 @@ def build_report(natal: Chart, varsha_years: list[int], out_path: str,
                        "offered for study, not as guidance for medical, financial "
                        "or legal decisions.", CAP),
              PageBreak()]
-    story += _natal_section(natal, work_dir, (jd_from, jd_to))
+    jd_asof = eph.jd_from_local(asof, natal.tz) if asof is not None else None
+    story += _natal_section(natal, work_dir, (jd_from, jd_to), jd_asof)
     if asof is not None:
         story += _dasha_now_section(natal, asof)
     story += _sadesati_section(natal, asof)

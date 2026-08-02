@@ -307,6 +307,34 @@ def test_dasha_now(c1):
     assert pad[3] <= jd < pad[4]
 
 
+def test_timeline_guidance_covers_every_mahadasha(c1, c3):
+    """One entry per timeline row, in order, and exactly one running."""
+    from datetime import datetime
+    from kundali import ephemeris as eph
+    from kundali.dasha import mahadashas as mds
+    from kundali.dasha_now import timeline_guidance
+    jd = eph.jd_from_local(datetime(2026, 7, 12), "Asia/Kolkata")
+    g = timeline_guidance(c1, jd)
+    assert [e["lord"] for e in g] == [m.lord for m in
+                                      mds(c1.bodies["Moon"].lon, c1.jd)]
+    assert [e["status"] for e in g].count("running") == 1
+    # past ... running ... coming, never interleaved
+    order = [e["status"] for e in g]
+    assert order == sorted(order, key=["past", "running", "coming"].index)
+    run = next(e for e in g if e["status"] == "running")
+    assert run["lord"] == "Sun" and "Running now" in run["timing"]
+    # a node era has no dignity of its own and cites its dispositor
+    ketu = next(e for e in timeline_guidance(c3, jd) if e["lord"] == "Ketu")
+    assert ketu["dignity"] == "-" and ketu["score"] is None
+    assert "Venus, lord of Taurus" in ketu["text"]
+
+
+def test_timeline_guidance_without_an_asof_date_marks_nothing_running(c1):
+    """The PDF path may be built with no as-of date - no era is 'now' then."""
+    from kundali.dasha_now import timeline_guidance
+    assert {e["status"] for e in timeline_guidance(c1)} == {"unknown"}
+
+
 # ---------- v1.4: Sade Sati impacts ----------
 
 def test_severity_profile(c1, c2, c3):
