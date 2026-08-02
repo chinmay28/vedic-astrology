@@ -380,6 +380,45 @@ def test_week_outlook_flags_chandrashtama(c3):
     pytest.fail("no chandrashtama day in five consecutive weeks")
 
 
+def test_week_suggestions_are_actionable_and_scoped(c3):
+    from datetime import datetime
+    from kundali.weekly import ADVICE, week_outlook
+    w = week_outlook(c3, datetime(2026, 8, 5))
+    text = " ".join(w["suggestions"])
+    # every notable transit contributes its own counsel, verbatim
+    for t in w["transits"]:
+        advice = ADVICE[t["body"]].get(t["grade"])
+        if advice:
+            assert advice in text, t["body"]
+    # scheduling advice names only days that have not already gone
+    ahead = {f"{d['day'][:3]} {d['date']}" for d in w["days"]
+             if d["when"] != "past"}
+    past = {f"{d['day'][:3]} {d['date']}" for d in w["days"]
+            if d["when"] == "past"}
+    assert any(lbl in w["suggestions"][0] for lbl in ahead)
+    assert not any(lbl in w["suggestions"][0] for lbl in past)
+    # and it never promises an outcome
+    assert "will " not in text.lower()
+
+
+def test_varsha_outlook_reads_the_year(c3):
+    from kundali.varshaphal import cast_varsha, outlook
+    v = cast_varsha(c3, 2026)
+    o = outlook(c3, v)
+    assert len(o["months"]) == len(v.mudda)
+    assert {m["strength"] for m in o["months"]} <= {"strong", "mixed",
+                                                    "strained"}
+    assert o["muntha_strength"] in ("strong", "mixed", "strained")
+    assert v.grade in o["text"] and str(v.muntha_house) in o["text"]
+    assert o["themes"] and o["suggestions"]
+    # the seed Mudda stretch can be under a day - never suggested as a
+    # month to plan around
+    short = [m for m in o["months"] if m["days"] < 3]
+    joined = " ".join(o["suggestions"])
+    for m in short:
+        assert f"{m['lord']} ({m['from']} to {m['to']})" not in joined
+
+
 def test_timeline_guidance_without_an_asof_date_marks_nothing_running(c1):
     """The PDF path may be built with no as-of date - no era is 'now' then."""
     from kundali.dasha_now import timeline_guidance

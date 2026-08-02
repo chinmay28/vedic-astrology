@@ -22,11 +22,18 @@
 <body>
 <header class="bar" id="bar">
   <button class="icon-btn" id="back" hidden aria-label="Back">&#8592;</button>
-  <img class="brand-logo" src="/icon.svg" alt="" aria-hidden="true">
-  <div class="brand-text">
-    <h1 id="title">Janma Kundali</h1>
-    <span class="brand-version" id="version" aria-label="App version"></span>
-  </div>
+  <!-- The mark is the way home from every view, so it is a button: the
+       name of the app stays put and the view says where you are under it. -->
+  <button class="brand" id="brand" aria-label="Janma Kundali - go to charts">
+    <img class="brand-logo" src="/icon.svg" alt="" aria-hidden="true">
+    <span class="brand-text">
+      <span class="brand-line">
+        <h1 id="title">Janma Kundali</h1>
+        <span class="brand-version" id="version" aria-label="App version"></span>
+      </span>
+      <span class="brand-sub" id="subtitle"></span>
+    </span>
+  </button>
   <button class="icon-btn" id="bar-action" hidden></button>
   <button class="dev-btn" id="dev-badge" title="Built by CM Hegday &middot; 0x434d"
           aria-label="Show the developer badge">

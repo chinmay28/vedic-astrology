@@ -25,7 +25,7 @@ from .diagrams import north_svg, south_svg
 from .model import (Chart, HOUSE_SIGNIFICATIONS, SEVEN_GRAHAS, SIGNS,
                     SIGN_LORD, dignity, nakshatra_of, sign_of)
 from .varga import navamsa_chart, vargottama
-from .varshaphal import cast_varsha
+from .varshaphal import cast_varsha, outlook as varsha_outlook
 from .weekly import week_outlook
 
 _CSS = """
@@ -187,7 +187,8 @@ def build_html(natal: Chart, varsha_years: list[int], out_path: str, asof=None) 
                       [[f"{d['day'][:3]} {d['date']}", d["moon_sign"],
                         str(d["from_moon"]), d["grade"], d["note"]]
                        for d in w["days"]]))
-        for title, items in (("Lean into", w["themes"]),
+        for title, items in (("What to do with it", w["suggestions"]),
+                             ("Lean into", w["themes"]),
                              ("Hold lightly", w["cautions"])):
             h.append(f"<h3>{title}</h3><ul>"
                      + "".join(f"<li>{escape(x)}</li>" for x in items)
@@ -323,10 +324,17 @@ def build_html(natal: Chart, varsha_years: list[int], out_path: str, asof=None) 
              f"- {v.grade}; lord {v.muntha_lord}"],
             ["Year-lord candidates",
              "; ".join(f"{r}: {p}" for r, p in v.candidates)]]))
-        h.append("<h3>Mudda dasha</h3>")
-        h.append(_tbl(["Lord", "From", "To"],
-                      [[m.lord, eph.jd_to_date_str(m.start, natal.tz),
-                        eph.jd_to_date_str(m.end, natal.tz)] for m in v.mudda]))
+        o = varsha_outlook(natal, v)
+        h.append(f"<h3>The year's outlook</h3><p>{escape(o['text'])}</p>")
+        for title, items in (("Themes", o["themes"]),
+                             ("Suggestions", o["suggestions"])):
+            h.append(f"<h3>{title}</h3><ul>"
+                     + "".join(f"<li>{escape(x)}</li>" for x in items)
+                     + "</ul>")
+        h.append("<h3>Mudda dasha - the year month by month</h3>")
+        h.append(_tbl(["Lord", "From", "To", "Stretch", "Reading"],
+                      [[m["lord"], m["from"], m["to"], m["strength"],
+                        m["note"]] for m in o["months"]]))
 
     h.append("<h2>Putting It Together</h2><p>" + escape(GUIDANCE["closing"]) + "</p>")
     h.append('<p class="foot">Computed with the Swiss Ephemeris (sidereal, '

@@ -30,7 +30,9 @@ from .varga import (navamsa_chart, shodashavarga_table, vargottama,
 from .dasha import antardashas_in_window, mahadashas
 from .model import (Chart, DIG_BALA_HOUSE, HOUSE_SIGNIFICATIONS, SIGNS,
                     SIGN_LORD, dignity, nakshatra_of, sign_of)
-from .varshaphal import Varsha, cast_varsha, sade_sati_phase
+from .varshaphal import (Varsha, cast_varsha,
+                         outlook as varsha_outlook,
+                         sade_sati_phase)
 from .weekly import week_outlook
 
 NAVY = colors.HexColor("#1e2749")
@@ -338,12 +340,19 @@ def _varsha_section(v: Varsha, natal: Chart, work_dir: str):
     imgs = Table([[Image(n_img, 62*mm, 62*mm), Image(s_img, 58*mm, 58*mm)]],
                  colWidths=[70*mm, 66*mm])
     imgs.setStyle(TableStyle([("ALIGN", (0, 0), (-1, -1), "CENTER")]))
+    o = varsha_outlook(natal, v)
     el += [Spacer(1, 2*mm), imgs, Spacer(1, 2*mm),
-           Paragraph("Mudda dasha", H3),
-           _table([["Lord", "From", "To"]] +
-                  [[m.lord, eph.jd_to_date_str(m.start, natal.tz),
-                    eph.jd_to_date_str(m.end, natal.tz)] for m in v.mudda],
-                  [80, 110, 110], fs=7.8),
+           Paragraph("The year's outlook", H3),
+           Paragraph(o["text"], BODY),
+           Paragraph("Themes", H3)]
+    el += [Paragraph(f"- {t}", BODY) for t in o["themes"]]
+    el.append(Paragraph("Suggestions", H3))
+    el += [Paragraph(f"- {s}", BODY) for s in o["suggestions"]]
+    el += [Paragraph("Mudda dasha - the year month by month", H3),
+           _table([["Lord", "From", "To", "Stretch", "Reading"]] +
+                  [[m["lord"], m["from"], m["to"], m["strength"], m["note"]]
+                   for m in o["months"]],
+                  [44, 58, 58, 44, 287], fs=7.2),
            Spacer(1, 4*mm)]
     return el
 
@@ -362,6 +371,8 @@ def _week_section(natal: Chart, asof):
                      str(d["from_moon"]), d["grade"], d["note"]])
     el += [Paragraph("Day by day (the transit Moon)", H3),
            _table(rows, [52, 58, 44, 52, 305], fs=7.4)]
+    el.append(Paragraph("What to do with it", H3))
+    el += [Paragraph(f"- {s}", BODY) for s in w["suggestions"]]
     el.append(Paragraph("Lean into", H3))
     el += [Paragraph(f"- {t}", BODY) for t in w["themes"]]
     el.append(Paragraph("Hold lightly", H3))

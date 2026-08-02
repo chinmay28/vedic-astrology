@@ -42,8 +42,10 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--lon", type=float, required=True, help="Longitude, +E")
     ap.add_argument("--place", default="", help="Place label for the report")
     ap.add_argument("--ayanamsa", choices=["raman", "lahiri"], default="raman")
-    ap.add_argument("--varsha", nargs="*", type=int, default=[],
-                    help="Calendar years for Tajika annual charts, e.g. 2026 2027")
+    ap.add_argument("--varsha", nargs="*", type=int, default=None,
+                    help="Calendar years for Tajika annual charts, e.g. "
+                         "2026 2027. Omit the flag for the current year "
+                         "and the next; pass it with no years for none.")
     ap.add_argument("--asof", default=None,
                     help="Date (YYYY-MM-DD) for the 'Dasha Now' section; "
                          "defaults to today")
@@ -56,14 +58,18 @@ def main(argv: list[str] | None = None) -> int:
     stem = args.out.rsplit(".", 1)[0]
     from datetime import datetime as _dt
     asof = (_dt.strptime(args.asof, "%Y-%m-%d") if args.asof else _dt.now())
+    # No --varsha at all means "the years someone actually wants to read":
+    # this one and the next. `--varsha` with no years still means none.
+    varsha = args.varsha if args.varsha is not None else [asof.year,
+                                                          asof.year + 1]
     if args.format in ("pdf", "both"):
         out = args.out if args.out.endswith(".pdf") else stem + ".pdf"
-        print(f"Report written: {build_report(natal, args.varsha, out, asof=asof)}")
+        print(f"Report written: {build_report(natal, varsha, out, asof=asof)}")
     if args.format in ("html", "both"):
         from .html_report import build_html
         out = args.out if (args.format == "html" and args.out.endswith(".html")) \
             else stem + ".html"
-        print(f"Report written: {build_html(natal, args.varsha, out, asof=asof)}")
+        print(f"Report written: {build_html(natal, varsha, out, asof=asof)}")
     return 0
 
 

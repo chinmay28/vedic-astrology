@@ -1,7 +1,7 @@
 /* sw.js - app shell offline, API network-first with a stale fallback.
    Downloads (reports, exports) are never cached: they are large and
    always recomputed server-side. */
-const SHELL = 'kundali-shell-v8';
+const SHELL = 'kundali-shell-v9';
 const DATA = 'kundali-data-v2';
 const ASSETS = ['/', '/app.css', '/app.js', '/icon.svg',
                 '/manifest.webmanifest', '/dev-badge.png'];

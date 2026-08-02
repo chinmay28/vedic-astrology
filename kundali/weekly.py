@@ -45,6 +45,68 @@ GOCHARA_GOOD = {
 MALEFICS = ("Sun", "Mars", "Saturn", "Rahu", "Ketu")
 SLOW = ("Jupiter", "Saturn", "Rahu", "Ketu")   # a whole week in one sign
 
+# Practical counsel per graha, by how its transit grades. The classical
+# reading says what a passage foregrounds; these say what to DO about it
+# in an ordinary week - the tradition's own register (favour this, hold
+# that), never an event prediction.
+ADVICE = {
+    "Sun": {
+        "favourable": "Ask for the things that need authority behind them "
+                      "- approvals, a hearing with someone senior, "
+                      "visibility for work already done.",
+        "testing": "Present rather than push with anyone senior this week; "
+                   "a decision forced now tends to be re-opened. Protect "
+                   "sleep and don't let overwork run unbroken."},
+    "Mars": {
+        "favourable": "A good stretch for hard, physical, unglamorous work: "
+                      "clear the backlog, train, ship the thing that needs "
+                      "force rather than finesse.",
+        "testing": "Slow down on the road and around tools; let angry "
+                   "messages sit overnight; step around disputes with "
+                   "siblings, neighbours and anyone who wants a fight."},
+    "Mercury": {
+        "favourable": "Batch the paperwork here - contracts, filings, "
+                      "negotiations, bookings, the explanation you have "
+                      "been putting off. It lands better this week.",
+        "testing": "Re-read before sending and confirm times, tickets and "
+                   "numbers twice; expect to be misheard, and say the "
+                   "important thing in person."},
+    "Jupiter": {
+        "favourable": "Ask advice from someone older or wiser, commit to "
+                      "the course or the mentor, and say yes to what "
+                      "widens the field rather than what only pays.",
+        "testing": "Guard against optimistic over-commitment - of money, "
+                   "of time, of promises. Take the smaller, concrete "
+                   "version of the offer."},
+    "Venus": {
+        "favourable": "Repair and enjoy the relationships; spend on what "
+                      "lasts; make the home better; book the trip you "
+                      "keep deferring.",
+        "testing": "Not the week for a large purchase or for forcing a "
+                   "relationship to define itself; comfort spending now "
+                   "reads as expensive later."},
+    "Saturn": {
+        "favourable": "Structure pays now: accounts, systems, decluttering, "
+                      "health routines - the unglamorous work that "
+                      "compounds. Finish rather than launch.",
+        "testing": "Expect delay and extra work, and price it in. Don't "
+                   "start litigation or take on new fixed obligations. "
+                   "Sleep, exercise and accounts stay non-negotiable - "
+                   "that is the whole of Saturn's ask."},
+    "Rahu": {
+        "favourable": "Unconventional routes and new networks open; use "
+                      "them, and still read the fine print.",
+        "testing": "Shortcuts and offers that look too good are the risk. "
+                   "Verify credentials, paperwork and counterparties "
+                   "before committing to anything."},
+    "Ketu": {
+        "favourable": "Good for research, for finishing loose ends, and "
+                      "for letting go of something you have outgrown.",
+        "testing": "Motivation may thin out - don't read the flatness as "
+                   "a verdict on the work. Keep the routine and postpone "
+                   "the big decision."},
+}
+
 # What each graha's transit foregrounds, in one phrase.
 KARAKA = {"Sun": "authority, vitality, the father, recognition",
           "Moon": "mood, the public, the mother, daily rhythm",
@@ -191,6 +253,61 @@ def _phrase(t: dict) -> str:
             f"your Moon ({t['sav']} bindus - {ground}): {t['themes']}")
 
 
+def _label(d: dict) -> str:
+    return f"{d['day'][:3]} {d['date']}"
+
+
+def _suggestions(dasha: dict, days: list[dict],
+                 transits: list[dict]) -> list[str]:
+    """What to actually do with the week - scheduling first, then the
+    counsel each notable transit carries."""
+    out = []
+    ahead = [d for d in days if d["when"] != "past"]
+    pool = ahead or days
+    best = [d for d in pool if d["grade"] == "favourable"]
+    dark = [d for d in pool if d["grade"] == "testing"]
+    quiet = [d for d in pool if d["grade"] == "quiet"]
+    if best:
+        out.append("Put what needs someone else's yes - a signing, an "
+                   "interview, a launch, a first meeting, an apology - on "
+                   + ", ".join(_label(d) for d in best)
+                   + ": those are the days the Moon supports outward moves.")
+    else:
+        out.append("No day left in this week is classically favourable for "
+                   "launches. Use it to prepare, and put the decision "
+                   "itself into the next favourable window.")
+    for d in dark:
+        out.append(f"Keep {_label(d)} light - it is chandrashtama. Move "
+                   "launches, confrontations and elective procedures off "
+                   "it; routine work, rest and catching up are what the "
+                   "day is for.")
+    if quiet:
+        out.append("The quiet days (" + ", ".join(_label(d) for d in quiet)
+                   + ") are maintenance days: admin, repairs, "
+                   "preparation, the reading you owe yourself.")
+    for t in transits:
+        advice = ADVICE.get(t["body"], {}).get(t["grade"])
+        if not advice:
+            continue
+        edge = ""
+        if t["grade"] == "favourable" and t["sav"] >= 30:
+            edge = (f" The sign it sits in holds {t['sav']} bindus - strong "
+                    "ground, so this one carries further than usual.")
+        elif t["grade"] == "testing" and t["sav"] <= 24:
+            edge = (f" Only {t['sav']} bindus in that sign - thin ground, "
+                    "so give this one more room than you think it needs.")
+        out.append(f"{t['body']}: {advice}{edge}")
+    for c in dasha["changes"]:
+        out.append(f"{c['date']} - {c['what']}: the background changes "
+                   "mid-week, so judge the second half on its own terms "
+                   "rather than by how the first half went.")
+    out.append("None of this overrides the running dasha, and none of it "
+               "is an event: a week is weather. Where a suggestion here "
+               "and your own judgement disagree, the tradition's own "
+               "advice is to wait for a second indicator.")
+    return out
+
+
 def _synthesis(dasha: dict, days: list[dict],
                transits: list[dict]) -> tuple[str, list[str], list[str]]:
     good = [t for t in transits if t["grade"] == "favourable"]
@@ -264,6 +381,7 @@ def week_outlook(natal: Chart, asof: datetime,
         "current": today is not None and monday <= today < next_monday,
         "headline": headline, "dasha": dasha, "days": days,
         "transits": transits, "themes": themes, "cautions": cautions,
+        "suggestions": _suggestions(dasha, days, transits),
         "best_days": [f"{d['day']} {d['date']}" for d in days
                       if d["grade"] == "favourable"],
         "guarded_days": [f"{d['day']} {d['date']}" for d in days

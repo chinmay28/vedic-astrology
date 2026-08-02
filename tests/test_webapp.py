@@ -204,6 +204,25 @@ def test_summary_dasha_and_ashtakavarga(summary):
     assert all(e["text"] and e["timing"] for e in eras)
 
 
+def test_varsha_defaults_to_this_year_and_the_next():
+    """A chart that names no years still gets a varshaphala - the two
+    years anyone opening it wants; the as-of date, not the clock, says
+    which those are."""
+    from datetime import datetime
+    rec = {k: v for k, v in C3.items() if k != "varsha_years"}
+    assert service.years_of(rec, datetime(2026, 8, 1)) == [2026, 2027]
+    assert service.years_of({**rec, "varsha_years": ""},
+                            datetime(2031, 1, 1)) == [2031, 2032]
+    # an explicit list always wins
+    assert service.years_of({**rec, "varsha_years": "2040"},
+                            datetime(2026, 8, 1)) == [2040]
+    s = service.summary({**rec, "id": 1}, asof="2026-08-01")
+    assert [v["year"] for v in s["varsha"]] == [2026, 2027]
+    for v in s["varsha"]:
+        assert v["outlook"]["text"] and v["outlook"]["suggestions"]
+        assert len(v["outlook"]["months"]) == len(v["mudda"])
+
+
 def test_summary_carries_the_week_of_the_asof_date(summary):
     """asof is a Saturday - the week must still start on the Monday."""
     w = summary["week"]
