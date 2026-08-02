@@ -1,6 +1,6 @@
-# Deploying Jataka (kundali-web)
+# Deploying Janma Kundali (kundali-web)
 
-**Jataka** is the mobile web GUI (see README); `kundali-web` is the
+**Janma Kundali** is the mobile web GUI (see README); `kundali-web` is the
 command that serves it. This is how to run it as a service on a Linux
 box — a home server, a NAS, a Raspberry Pi — so every phone on the
 network shares one database.
@@ -51,6 +51,7 @@ curl -fsSL …/scripts/quickstart.sh | sudo KUNDALI_BIND=127.0.0.1 PORT=9090 bas
 | `BACKUP_DIR` | `/var/lib/kundali/backups` | Host directory for pre-upgrade backups |
 | `BACKUP_KEEP` | `10` | Backups kept |
 | `INSTALL_DOCKER` | `auto` | `never` to fail instead of installing Docker |
+| `KUNDALI_GEOCODER` | Open-Meteo's index | `off` disables the city search; a URL points it elsewhere. Set it in `.env` beside the compose file — see [Place search](#place-search). |
 
 On a Pi the first build takes roughly 5-15 minutes (longer on a Pi 3, or on
 32-bit Pi OS where pyswisseph compiles from source); later runs reuse
@@ -176,6 +177,7 @@ curl -fsSL …/scripts/install-systemd.sh | sudo PORT=9090 KUNDALI_REF=v1.4.0 ba
 | `HOST` | `0.0.0.0` | Bind address (`127.0.0.1` for localhost only) |
 | `PYTHON` | `python3` | Interpreter to build the venv from (needs ≥ 3.10) |
 | `BACKUP_KEEP` | `10` | Pre-upgrade database snapshots to keep |
+| `KUNDALI_GEOCODER` | Open-Meteo's index | `off` disables the city search — see [Place search](#place-search) |
 
 Running two instances on one host: give each its own `KUNDALI_SERVICE`,
 `KUNDALI_PREFIX`, `KUNDALI_DATA_DIR` and `PORT`.
@@ -243,14 +245,46 @@ so cloning, pulling and rebuilding cannot touch it.
 ## Backups
 
 The installer's snapshots cover upgrades. For routine backups, use the web
-app itself — the **Data** screen downloads all charts as JSON or CSV, or
-the whole `kundali.sqlite` file, and restores from a JSON backup (matching
-records are updated, not duplicated). Everything is an open format; the
-SQLite file opens in any SQLite tool.
+app itself — the **Data** screen downloads everything as JSON (charts and
+saved places together), charts or places as CSV, or the whole
+`kundali.sqlite` file, and restores from a JSON backup (matching records
+are updated, not duplicated; a backup taken before places existed still
+restores). Everything is an open format; the SQLite file opens in any
+SQLite tool.
 
 Copying the live database file directly is fine while the service is
 stopped. While it is running, prefer the `/api/export/kundali.sqlite`
 endpoint — it takes a proper SQLite backup with the WAL folded in.
+
+## Place search
+
+The **Places** tab and the birthplace box on the chart form can look a
+city or town up instead of asking for coordinates. That lookup is the only
+thing in this project that leaves the machine:
+
+* One outbound `GET` per search, made by the server (never by the phone),
+  to `$KUNDALI_GEOCODER` — Open-Meteo's public GeoNames index by default.
+* It carries the name typed into the box and nothing else. No chart data,
+  no birth times, no identifiers.
+* It runs only when someone presses **Search**. Nothing is looked up in
+  the background, and nothing is looked up when a chart is saved.
+* Results fill in latitude, longitude and the IANA timezone.
+
+To keep an installation sealed, switch it off — the GUI then hides the
+search box rather than offering a button that cannot work, and every form
+still accepts coordinates typed by hand:
+
+```bash
+# Docker: add it to the .env beside docker-compose.yml, then re-run up -d
+KUNDALI_GEOCODER=off
+
+# systemd: add to the unit and `systemctl daemon-reload && restart`
+Environment=KUNDALI_GEOCODER=off
+```
+
+Setting it to a URL points the search at another GeoNames-shaped index
+(a self-hosted one, for instance). `/api/health` reports which index is in
+use, or `null` when search is off.
 
 ## Exposing it safely
 

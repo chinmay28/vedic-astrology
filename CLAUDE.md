@@ -51,10 +51,12 @@ The package is a layered pipeline: ephemeris → pure computation → rendering.
 - `cli.py` — argument parsing and `cast_natal()`, the single chart
   construction path for the whole tool. `__main__.py` delegates to it.
 - `webapp/` — mobile-first web GUI, stdlib only, layered the same way:
-  `store.py` (saved records in one SQLite file + input validation),
-  `service.py` (record → JSON payload / report bytes), `server.py`
-  (`ThreadingHTTPServer`, JSON API + static shell), `static/` (no build
-  step: hand-written HTML/CSS/JS, service worker, manifest).
+  `store.py` (saved charts and saved places in one SQLite file + input
+  validation), `service.py` (record → JSON payload / report bytes),
+  `geocode.py` (the optional city lookup, and the only outbound call in
+  the project), `server.py` (`ThreadingHTTPServer`, JSON API + static
+  shell), `static/` (no build step: hand-written HTML/CSS/JS, service
+  worker, manifest).
 
 ## Invariants and conventions
 
@@ -81,21 +83,32 @@ The package is a layered pipeline: ephemeris → pure computation → rendering.
   Swiss Ephemeris' sidereal mode is process-global — a concurrent
   lahiri request would otherwise poison a raman one. Keep new entry
   points inside that lock.
-- **The web app is called Jataka; the package and commands are not.**
-  "Jataka" is the display name only - `<title>`, the manifest, the app
-  bar, the PDF/HTML document title. The package (`kundali`), the console
-  scripts (`kundali-report`, `kundali-web`), the database filename, the
-  install paths, the Docker volume and the systemd unit deliberately keep
-  the `kundali` name, because deployed instances depend on them. Do not
-  "finish" the rename without a migration path in both installers.
-  Sanskrit terms inside a report ("Janma Kundali") are domain vocabulary,
-  not the product name - leave them alone.
+- **The web app is called Janma Kundali; the package and commands are
+  not.** (It was called Jataka until v1.5 — that name should not come
+  back anywhere.) "Janma Kundali" is the display name only: `<title>`,
+  the manifest, the app bar, the PDF/HTML document title. The package
+  (`kundali`), the console scripts (`kundali-report`, `kundali-web`), the
+  database filename, the install paths, the Docker volume and the systemd
+  unit deliberately keep the `kundali` name, because deployed instances
+  depend on them. Do not "finish" the rename without a migration path in
+  both installers. The same words are also domain vocabulary inside a
+  report, which is why the rename cost nothing there.
 - Branding lives in `webapp/static/`: `icon.svg` is the app mark (also
   rasterised for the PWA icons), `dev-badge*.png` the developer badge.
   The version shown in the app header comes from `/api/health`, i.e.
   `kundali.__version__` — the same string stamped into the PDF footer and
   the HTML report, so a document always names the build that made it.
-  Bump it in `kundali/__init__.py` and `pyproject.toml` together.
+- **The version assembles itself; do not hand-write one.**
+  `kundali/version.py` holds `MAJOR`/`MINOR` and nothing else does -
+  `pyproject.toml` is `dynamic` and reads `kundali.__version__`. The
+  patch is the commit count (every commit is a patch release, as in
+  CountRoster), resolved in this order: `$KUNDALI_VERSION_PATCH` ->
+  `git rev-list --count HEAD` in the checkout -> the patch pip recorded
+  in the installed metadata -> 0. That last-resort 0 is deliberate: a
+  shallow clone must not report a number that is too small. The Docker
+  build has no `.git` (see .dockerignore), so `scripts/quickstart.sh`
+  writes the count into `.env` and compose passes it as a build arg -
+  keep that chain intact when touching either file.
 - The web app adds no dependencies (stdlib `http.server` + `sqlite3`;
   `cairosvg`, already required, rasterises the PWA icons) and no
   frontend build step. Keep it that way.
@@ -124,7 +137,14 @@ The package is a layered pipeline: ephemeris → pure computation → rendering.
 - The web app has no authentication on purpose (trusted-network tool,
   binds 127.0.0.1 by default). Don't bolt on half of an auth system;
   if it ever needs one, it needs the whole thing.
-- Coordinates are explicit CLI inputs by design; do not add geocoding.
+- Coordinates are explicit inputs by design and the CLI has no lookup at
+  all. The web app's **Places** tab (a `places` table in the same SQLite
+  file, no computation attached) and `webapp/geocode.py` are the one
+  exception, and a narrow one: a single outbound GET, only when someone
+  presses Search, only when `$KUNDALI_GEOCODER` is not `off`, and every
+  form still works with the lookup dead. Keep it that way - no background
+  lookups, no auto-geocoding on save, and never make a chart depend on
+  a network call.
 - **Deliberately out of scope** (see README "Scope, honestly stated"):
   Shadbala, divisional charts beyond what varga.py implements, full
   Panchavargiya Bala. A partial implementation that emits numbers

@@ -15,9 +15,10 @@ import urllib.request
 
 import pytest
 
-from kundali.webapp import service
+from kundali.webapp import geocode, service
 from kundali.webapp.server import build_server
-from kundali.webapp.store import Store, parse_years, validate
+from kundali.webapp.store import (Store, parse_years, validate,
+                                  validate_place)
 
 C3 = {"name": "C3", "birth_date": "1993-11-26", "birth_time": "22:03",
       "tz": "Asia/Kolkata", "lat": 14.6197, "lon": 74.8354,
@@ -25,6 +26,8 @@ C3 = {"name": "C3", "birth_date": "1993-11-26", "birth_time": "22:03",
 C2 = {"name": "C2", "birth_date": "2026-05-12", "birth_time": "15:26",
       "tz": "America/Los_Angeles", "lat": 37.3382, "lon": -121.8863,
       "place": "San Jose", "ayanamsa": "raman"}
+P1 = {"name": "Sirsi, Karnataka, India", "lat": 14.6197, "lon": 74.8354,
+      "tz": "Asia/Kolkata", "notes": "birthplace"}
 
 
 # ----------------------------------------------------------- validation
@@ -61,6 +64,26 @@ def test_parse_years_accepts_lists_and_strings():
     assert parse_years("") == []
 
 
+def test_validate_place_keeps_the_timezone_optional():
+    rec = validate_place({"name": "Sirsi", "lat": "14.6197", "lon": 74.8354})
+    assert rec == {"name": "Sirsi", "lat": pytest.approx(14.6197),
+                   "lon": pytest.approx(74.8354), "tz": "", "notes": ""}
+    assert validate_place(P1)["tz"] == "Asia/Kolkata"
+
+
+@pytest.mark.parametrize("bad, message", [
+    ({"name": "  "}, "a place needs a name"),
+    ({"name": "x" * 121}, "too long"),
+    ({"lat": 91}, "lat must be between"),
+    ({"lon": "west"}, "lon must be a number"),
+    ({"tz": "IST"}, "IANA timezone"),
+])
+def test_validate_place_rejects_bad_input(bad, message):
+    with pytest.raises(ValueError) as err:
+        validate_place({**P1, **bad})
+    assert message in str(err.value)
+
+
 # ---------------------------------------------------------------- store
 
 @pytest.fixture()
@@ -84,17 +107,56 @@ def test_store_crud(store):
 def test_import_is_idempotent(store):
     store.create(validate(C3))
     backup = store.export_json()
-    assert store.import_json(backup) == {"added": 0, "updated": 1}
-    assert store.import_json(backup) == {"added": 0, "updated": 1}
+    counts = {"added": 0, "updated": 1, "places_added": 0,
+              "places_updated": 0}
+    assert store.import_json(backup) == counts
+    assert store.import_json(backup) == counts
     assert len(store.list()) == 1
 
     store.import_json({"charts": [{**C3, "name": "Someone else"}]})
     assert len(store.list()) == 2
 
 
+def test_place_crud(store):
+    rec = store.create_place(validate_place(P1))
+    assert rec["id"] and rec["tz"] == "Asia/Kolkata"
+    assert [p["name"] for p in store.places()] == [P1["name"]]
+
+    store.update_place(rec["id"], validate_place({**P1, "name": "Sirsi"}))
+    assert store.place(rec["id"])["name"] == "Sirsi"
+
+    assert store.delete_place(rec["id"]) is True
+    assert store.place(rec["id"]) is None
+    assert store.delete_place(rec["id"]) is False
+
+
+def test_places_survive_a_backup_round_trip(store):
+    store.create(validate(C3))
+    store.create_place(validate_place(P1))
+    backup = store.export_json()
+    assert backup["version"] == 2 and len(backup["places"]) == 1
+
+    assert store.import_json(backup) == {
+        "added": 0, "updated": 1, "places_added": 0, "places_updated": 1}
+    assert len(store.places()) == 1                 # matched, not duplicated
+
+    store.import_json({"charts": [], "places": [{**P1, "name": "Elsewhere"}]})
+    assert len(store.places()) == 2
+
+
+def test_a_version_1_backup_still_restores(store):
+    """Backups written before places existed have no 'places' key."""
+    assert store.import_json({"format": "kundali-charts", "version": 1,
+                              "charts": [C3]})["added"] == 1
+    assert store.places() == []
+
+
 def test_exports_are_open_formats(store):
     store.create(validate(C3))
+    store.create_place(validate_place(P1))
     assert store.export_csv().splitlines()[0].startswith("id,name,birth_date")
+    assert store.export_places_csv().splitlines()[0] == (
+        "id,name,lat,lon,tz,notes,created_at,updated_at")
     assert store.raw_bytes().startswith(b"SQLite format 3")
 
 
@@ -163,6 +225,64 @@ def test_csv_exports(tmp_path):
     dasha = service.dasha_csv(C3).splitlines()
     assert dasha[0] == "level,lord,sub,from,to"
     assert sum(1 for r in dasha if r.startswith("Mahadasha")) == 9
+
+
+# ------------------------------------------------------- place lookup
+
+SAMPLE_HITS = {"results": [
+    {"id": 1, "name": "Sirsi", "latitude": 14.62072, "longitude": 74.83554,
+     "country": "India", "admin1": "Karnataka", "timezone": "Asia/Kolkata",
+     "population": 60468},
+    {"id": 2, "name": "Sirsi", "latitude": 27.17, "longitude": 78.65,
+     "country": "India", "admin1": "Uttar Pradesh",
+     "timezone": "Asia/Kolkata"},
+    {"id": 3, "name": "Broken", "latitude": "nope", "longitude": 1},
+]}
+
+
+def test_geocode_parses_hits_and_drops_unusable_ones():
+    rows = geocode.parse(SAMPLE_HITS)
+    assert [r["label"] for r in rows] == ["Sirsi, Karnataka, India",
+                                          "Sirsi, Uttar Pradesh, India"]
+    assert rows[0] == {"label": "Sirsi, Karnataka, India", "name": "Sirsi",
+                       "admin1": "Karnataka", "country": "India",
+                       "lat": 14.6207, "lon": 74.8355, "tz": "Asia/Kolkata",
+                       "population": 60468}
+
+
+@pytest.mark.parametrize("payload", [{}, {"results": None}, {"results": []},
+                                     {"results": ["nonsense"]},
+                                     {"results": [{"name": "No coords"}]}])
+def test_geocode_never_raises_on_an_odd_payload(payload):
+    assert geocode.parse(payload) == []
+
+
+def test_geocode_label_does_not_repeat_itself():
+    assert geocode.label({"name": "Singapore", "admin1": "Singapore",
+                          "country": "Singapore"}) == "Singapore"
+
+
+def test_geocode_can_be_switched_off(monkeypatch):
+    monkeypatch.setenv("KUNDALI_GEOCODER", "off")
+    assert geocode.enabled() is False and geocode.source() is None
+    with pytest.raises(LookupError) as err:
+        geocode.search("Sirsi")
+    assert "switched off" in str(err.value)
+
+
+def test_geocode_endpoint_is_configurable(monkeypatch):
+    monkeypatch.delenv("KUNDALI_GEOCODER", raising=False)
+    assert geocode.endpoint() == geocode.DEFAULT_ENDPOINT
+    assert geocode.source() == geocode.SOURCE
+    monkeypatch.setenv("KUNDALI_GEOCODER", "https://gazetteer.example/search")
+    assert geocode.source() == "gazetteer.example"
+
+
+def test_geocode_reports_an_unreachable_index_as_a_message(monkeypatch):
+    monkeypatch.setenv("KUNDALI_GEOCODER", "http://127.0.0.1:1/search")
+    with pytest.raises(LookupError) as err:
+        geocode.search("Sirsi")
+    assert "coordinates by hand" in str(err.value)
 
 
 # ------------------------------------------------ graceful shutdown
@@ -250,13 +370,24 @@ def chart_id(base):
 def test_health_and_static_shell(base):
     status, _, body = call(base, "/api/health")
     assert status == 200 and json.loads(body)["ok"] is True
-    for path, needle in [("/", b"<title>Jataka</title>"),
+    for path, needle in [("/", b"<title>Janma Kundali</title>"),
                          ("/app.js", b"service"),
                          ("/app.css", b"--gold"),
                          ("/manifest.webmanifest", b"standalone"),
                          ("/sw.js", b"kundali-shell")]:
         status, _, body = call(base, path)
         assert status == 200 and needle in body, path
+
+
+def test_the_app_is_called_janma_kundali_everywhere_it_shows(base):
+    """The display name is the app bar, the tab title and the installed
+    PWA; the package, commands and database keep the kundali- prefix."""
+    for path in ("/", "/manifest.webmanifest", "/app.js"):
+        assert b"Jataka" not in call(base, path)[2], path
+    assert b"Janma Kundali" in call(base, "/")[2]
+    manifest = json.loads(call(base, "/manifest.webmanifest")[2])
+    assert manifest["short_name"] == "Janma Kundali"
+    assert manifest["name"].startswith("Janma Kundali")
 
 
 def test_static_assets_are_packaged():
@@ -352,14 +483,60 @@ def test_report_downloads(base, chart_id):
     assert status == 200 and body.startswith(b"body,sign,deg")
 
 
+def test_place_crud_over_http(base):
+    status, _, body = call(base, "/api/places", "POST", P1)
+    assert status == 201
+    pid = json.loads(body)["place"]["id"]
+
+    assert any(p["id"] == pid
+               for p in json.loads(call(base, "/api/places")[2])["places"])
+    assert json.loads(call(base, f"/api/places/{pid}")[2])["place"]["tz"] \
+        == "Asia/Kolkata"
+
+    status, _, body = call(base, f"/api/places/{pid}", "PUT",
+                           {**P1, "name": "Sirsi"})
+    assert status == 200 and json.loads(body)["place"]["name"] == "Sirsi"
+
+    assert call(base, f"/api/places/{pid}", "DELETE")[0] == 200
+    assert call(base, f"/api/places/{pid}")[0] == 404
+    assert call(base, "/api/places/9999", "DELETE")[0] == 404
+
+
+def test_place_validation_errors_reach_the_client(base):
+    status, _, body = call(base, "/api/places", "POST", {**P1, "tz": "IST"})
+    assert status == 400 and "IANA" in json.loads(body)["error"]
+
+
+def test_health_reports_the_place_index(base, monkeypatch):
+    monkeypatch.setenv("KUNDALI_GEOCODER", "off")
+    health = json.loads(call(base, "/api/health")[2])
+    assert health["geocoder"] is None            # the GUI hides the box
+    assert "places" in health
+
+    status, _, body = call(base, "/api/geocode?q=Sirsi")
+    assert status == 503 and "by hand" in json.loads(body)["error"]
+
+    monkeypatch.setenv("KUNDALI_GEOCODER", "http://127.0.0.1:1/search")
+    health = json.loads(call(base, "/api/health")[2])
+    assert health["geocoder"] == "127.0.0.1:1"
+    assert call(base, "/api/geocode?q=")[0] == 400        # nothing to search
+    assert call(base, "/api/geocode?q=Sirsi")[0] == 502   # index unreachable
+
+
 def test_backup_endpoints(base, chart_id):
+    call(base, "/api/places", "POST", P1)
     status, _, body = call(base, "/api/export/charts.json")
-    assert status == 200 and json.loads(body)["format"] == "kundali-charts"
+    assert status == 200
+    backup = json.loads(body)
+    assert backup["format"] == "kundali-charts" and backup["version"] == 2
+    assert [p["name"] for p in backup["places"]] == [P1["name"]]
 
     assert call(base, "/api/export/charts.csv")[2].startswith(b"id,name")
+    assert call(base, "/api/export/places.csv")[2].startswith(b"id,name,lat")
     assert call(base, "/api/export/kundali.sqlite")[2].startswith(
         b"SQLite format 3")
 
-    status, _, body = call(base, "/api/import", "POST", json.loads(
-        call(base, "/api/export/charts.json")[2]))
-    assert status == 200 and json.loads(body)["added"] == 0
+    status, _, body = call(base, "/api/import", "POST", backup)
+    assert status == 200
+    assert json.loads(body) == {"added": 0, "updated": len(backup["charts"]),
+                                "places_added": 0, "places_updated": 1}

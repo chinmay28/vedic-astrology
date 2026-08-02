@@ -1,6 +1,9 @@
 [project]
 name = "kundali-report"
-version = "1.4.0"
+# MAJOR.MINOR from kundali/version.py, patch = the commit count. Building
+# from a checkout stamps the real number into the wheel metadata, which is
+# where an install with no .git reads it back from at runtime.
+dynamic = ["version"]
 description = "Jyotish natal + Tajika varshaphala PDF report generator (Swiss Ephemeris, sidereal)"
 requires-python = ">=3.10"
 dependencies = [
@@ -19,6 +22,9 @@ kundali-web = "kundali.webapp.server:main"
 [build-system]
 requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
+
+[tool.setuptools.dynamic]
+version = {attr = "kundali.__version__"}
 
 [tool.setuptools.packages.find]
 include = ["kundali*"]

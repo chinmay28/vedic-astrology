@@ -47,6 +47,9 @@
 #   BACKUP_DIR       host backup directory (default: /var/lib/kundali/backups)
 #   BACKUP_KEEP      backups kept          (default: 10)
 #   INSTALL_DOCKER   auto | never          install Docker if missing (default: auto)
+#   KUNDALI_GEOCODER city search index     (default: Open-Meteo's public one;
+#                                           'off' seals the install and hides
+#                                           the search box)
 #
 set -euo pipefail
 
@@ -80,6 +83,7 @@ PORT="${PORT:-8777}"
 BACKUP_DIR="${BACKUP_DIR:-/var/lib/kundali/backups}"
 BACKUP_KEEP="${BACKUP_KEEP:-10}"
 INSTALL_DOCKER="${INSTALL_DOCKER:-auto}"
+GEOCODER="${KUNDALI_GEOCODER:-}"   # empty = the built-in default index
 
 SRC_DIR="$PREFIX/src"
 IMAGE="kundali-web:local"
@@ -106,6 +110,7 @@ printf '  %-9s %s\n' "source"  "$SRC_DIR$( [ -n "$LOCAL_CHECKOUT" ] && echo " (e
 printf '  %-9s %s\n' "data"    "docker volume ${PROJECT}_kundali-data"
 printf '  %-9s %s\n' "backups" "$BACKUP_DIR"
 printf '  %-9s %s\n' "listen"  "http://$BIND:$PORT"
+printf '  %-9s %s\n' "search"  "${GEOCODER:-open-meteo (set KUNDALI_GEOCODER=off to disable)}"
 
 # ---------------------------------------------------------------------------
 # 1. Docker (installed here if missing) + git
@@ -187,14 +192,27 @@ else
 fi
 [ -f "$SRC_DIR/docker-compose.yml" ] || die "no docker-compose.yml at $SRC_DIR - checkout failed?"
 
+# The version's patch number is the commit count, and .dockerignore keeps
+# .git out of the build context - so read it here and hand it to the build.
+# A shallow clone would undercount, so it reports nothing instead.
+VERSION_PATCH=""
+if [ "$(git_src rev-parse --is-shallow-repository 2>/dev/null)" != "true" ]; then
+  VERSION_PATCH="$(git_src rev-list --count HEAD 2>/dev/null || true)"
+fi
+[ -n "$VERSION_PATCH" ] || warn "cannot count commits here - the build will report patch 0."
+
 # Where to listen is per-host, so it lives in a .env beside the compose file
 # rather than in the compose file itself.
 cat > "$SRC_DIR/.env" <<ENV
 # written by scripts/quickstart.sh - edit and re-run 'docker compose up -d'
 KUNDALI_BIND=$BIND
 KUNDALI_PORT=$PORT
+KUNDALI_VERSION_PATCH=$VERSION_PATCH
+# City search index for the Places tab. Empty = the built-in default;
+# 'off' seals the install and hides the search box. See DEPLOYMENT.md.
+KUNDALI_GEOCODER=$GEOCODER
 ENV
-ok "wrote $SRC_DIR/.env (bind $BIND, port $PORT)"
+ok "wrote $SRC_DIR/.env (bind $BIND, port $PORT, version patch ${VERSION_PATCH:-unknown})"
 
 # ---------------------------------------------------------------------------
 # 3. Build (the old container keeps serving meanwhile)

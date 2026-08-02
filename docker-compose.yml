@@ -21,7 +21,14 @@ name: kundali          # fixed project name, so the volume is kundali_kundali-da
 
 services:
   kundali-web:
-    build: .
+    build:
+      context: .
+      args:
+        # The version's patch number is the commit count, and .git is not in
+        # the build context - so it is passed in (quickstart.sh writes it to
+        # the .env beside this file). Empty means "this build cannot tell",
+        # which shows up as patch 0 rather than a wrong number.
+        KUNDALI_VERSION_PATCH: "${KUNDALI_VERSION_PATCH:-}"
     image: kundali-web:local
     container_name: kundali-web
     restart: unless-stopped
@@ -36,6 +43,10 @@ services:
       - kundali-data:/data
     environment:
       - TZ=UTC          # only affects log timestamps; chart timezones are per-record
+      # The city search index. Empty means the built-in default; set
+      # KUNDALI_GEOCODER=off in .env for an install that must never reach
+      # the internet (the GUI then hides the search box).
+      - KUNDALI_GEOCODER=${KUNDALI_GEOCODER:-}
     # Hardening, matching the systemd unit in deploy/.
     read_only: true     # the rootfs is immutable; /data and /tmp are the exceptions
     tmpfs:

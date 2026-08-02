@@ -7,6 +7,9 @@ Contract:
       4xx/5xx status and a message meant to be shown to the user.
     * Report downloads stream bytes produced by service.py, so the web
       GUI and the CLI emit byte-identical documents.
+    * /api/geocode is the one route that talks to anything outside this
+      process, only when a person presses search, and only when
+      $KUNDALI_GEOCODER is not `off`. See geocode.py.
 
 There is no authentication: like CountRoster, this is meant for a
 trusted network. The default bind is 127.0.0.1.
@@ -27,8 +30,9 @@ from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlparse
 from zoneinfo import available_timezones
 
-from . import service
-from .store import Store, default_db_path, parse_years, validate
+from . import geocode, service
+from .store import (Store, default_db_path, parse_years, validate,
+                    validate_place)
 
 STATIC = Path(__file__).parent / "static"
 MAX_BODY = 8 << 20          # 8 MB: enough for a full backup restore
@@ -190,10 +194,29 @@ class Handler(BaseHTTPRequestHandler):
     def health(self) -> None:
         from .. import __version__
         self._json({"ok": True, "version": __version__, "db": self.db.path,
-                    "charts": len(self.db.list())})
+                    "charts": len(self.db.list()),
+                    "places": len(self.db.places()),
+                    # None when lookup is off, so the GUI can hide the
+                    # search box instead of offering a dead button.
+                    "geocoder": geocode.source()})
 
     def timezones(self) -> None:
         self._json({"timezones": sorted(available_timezones())})
+
+    def geocode_search(self) -> None:
+        """City/town lookup. Optional by design - see geocode.py."""
+        query = (self.query.get("q", [""])[0] or "").strip()
+        if not geocode.enabled():
+            self._error(503, "place search is switched off on this server "
+                             "(KUNDALI_GEOCODER=off) - enter coordinates "
+                             "by hand")
+            return
+        try:
+            results = geocode.search(query)
+        except LookupError as exc:
+            self._error(502 if query else 400, str(exc))
+            return
+        self._json({"results": results, "source": geocode.source()})
 
     # --------------------------------------------------------- chart CRUD
     def _require(self, chart_id: str) -> dict | None:
@@ -224,6 +247,37 @@ class Handler(BaseHTTPRequestHandler):
             return
         self.db.delete(int(chart_id))
         self._json({"deleted": int(chart_id)})
+
+    # --------------------------------------------------------- place CRUD
+    def places_list(self) -> None:
+        self._json({"places": self.db.places()})
+
+    def places_create(self) -> None:
+        self._json({"place": self.db.create_place(
+            validate_place(self._body()))}, 201)
+
+    def _require_place(self, place_id: str) -> dict | None:
+        rec = self.db.place(int(place_id))
+        if rec is None:
+            self._error(404, "no place with that id")
+        return rec
+
+    def place_get(self, place_id: str) -> None:
+        rec = self._require_place(place_id)
+        if rec:
+            self._json({"place": rec})
+
+    def place_update(self, place_id: str) -> None:
+        if self._require_place(place_id) is None:
+            return
+        self._json({"place": self.db.update_place(
+            int(place_id), validate_place(self._body()))})
+
+    def place_delete(self, place_id: str) -> None:
+        if self._require_place(place_id) is None:
+            return
+        self.db.delete_place(int(place_id))
+        self._json({"deleted": int(place_id)})
 
     # ------------------------------------------------------- computations
     def _asof(self) -> str | None:
@@ -295,6 +349,10 @@ class Handler(BaseHTTPRequestHandler):
         self._download(self.db.export_csv().encode(), "text/csv",
                        "kundali-charts.csv")
 
+    def export_places_csv(self) -> None:
+        self._download(self.db.export_places_csv().encode(), "text/csv",
+                       "kundali-places.csv")
+
     def export_sqlite(self) -> None:
         self._download(self.db.raw_bytes(), "application/vnd.sqlite3",
                        "kundali.sqlite")
@@ -312,8 +370,14 @@ Handler.ROUTES = [
     ("GET", re.compile(r"/icons/(\d+)\.png"), "icon"),
     ("GET", re.compile(r"/api/health"), "health"),
     ("GET", re.compile(r"/api/timezones"), "timezones"),
+    ("GET", re.compile(r"/api/geocode"), "geocode_search"),
     ("GET", re.compile(r"/api/charts"), "charts_list"),
     ("POST", re.compile(r"/api/charts"), "charts_create"),
+    ("GET", re.compile(r"/api/places"), "places_list"),
+    ("POST", re.compile(r"/api/places"), "places_create"),
+    ("GET", re.compile(r"/api/places/(\d+)"), "place_get"),
+    ("PUT", re.compile(r"/api/places/(\d+)"), "place_update"),
+    ("DELETE", re.compile(r"/api/places/(\d+)"), "place_delete"),
     ("POST", re.compile(r"/api/preview"), "preview"),
     ("GET", re.compile(r"/api/charts/(\d+)"), "chart_get"),
     ("PUT", re.compile(r"/api/charts/(\d+)"), "chart_update"),
@@ -327,6 +391,7 @@ Handler.ROUTES = [
     ("GET", re.compile(r"/api/charts/(\d+)/dasha\.csv"), "chart_dasha_csv"),
     ("GET", re.compile(r"/api/export/charts\.json"), "export_json"),
     ("GET", re.compile(r"/api/export/charts\.csv"), "export_csv"),
+    ("GET", re.compile(r"/api/export/places\.csv"), "export_places_csv"),
     ("GET", re.compile(r"/api/export/kundali\.sqlite"), "export_sqlite"),
     ("POST", re.compile(r"/api/import"), "import_json"),
 ]
@@ -356,6 +421,9 @@ def run(host: str = "127.0.0.1", port: int = 8777,
         db_path: str | None = None) -> int:
     httpd = build_server(host, port, db_path or default_db_path())
     print(f"kundali-web on http://{host}:{port}  (db: {httpd.store.path})")
+    source = geocode.source()
+    print(f"place search: {source}" if source
+          else "place search: off - coordinates are entered by hand")
     if host in ("0.0.0.0", "::"):
         hint = _lan_hint(port)
         if hint:

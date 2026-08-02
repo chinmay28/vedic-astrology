@@ -479,6 +479,6 @@ def build_report(natal: Chart, varsha_years: list[int], out_path: str,
 
     doc = SimpleDocTemplate(out_path, pagesize=A4, topMargin=16*mm,
                             bottomMargin=16*mm, leftMargin=17*mm,
-                            rightMargin=17*mm, title=f"Jataka - {natal.name}")
+                            rightMargin=17*mm, title=f"Janma Kundali - {natal.name}")
     doc.build(story, onFirstPage=footer, onLaterPages=footer)
     return out_path

@@ -1,7 +1,7 @@
 {
-  "name": "Jataka - Vedic Charts",
-  "short_name": "Jataka",
-  "description": "Jataka - Vedic natal and varshaphala charts, with downloadable PDF reports.",
+  "name": "Janma Kundali - Vedic Charts",
+  "short_name": "Janma Kundali",
+  "description": "Janma Kundali - Vedic natal and varshaphala charts, with downloadable PDF reports.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",

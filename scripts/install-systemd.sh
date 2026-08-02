@@ -49,6 +49,9 @@
 #   HOST              bind address            (default: 0.0.0.0)
 #   PYTHON            interpreter to build on (default: python3; needs >= 3.10)
 #   BACKUP_KEEP       pre-upgrade backups kept (default: 10)
+#   KUNDALI_GEOCODER  city search index        (default: Open-Meteo's public
+#                                               one; 'off' seals the install
+#                                               and hides the search box)
 #
 set -euo pipefail
 umask 022      # the service user must be able to read the code it runs
@@ -88,6 +91,7 @@ PORT="${PORT:-8777}"
 HOST="${HOST:-0.0.0.0}"
 PYTHON="${PYTHON:-python3}"
 BACKUP_KEEP="${BACKUP_KEEP:-10}"
+GEOCODER="${KUNDALI_GEOCODER:-}"       # empty = the built-in default index
 
 SRC_DIR="$PREFIX/src"
 VENV="$PREFIX/venv"                    # symlink to the live build below
@@ -125,6 +129,7 @@ printf '  %-10s %s\n' "data"     "$DATA_DIR"
 printf '  %-10s %s\n' "database" "$DB_PATH"
 printf '  %-10s %s\n' "service"  "${SERVICE_NAME}.service (user: $SVC_USER)"
 printf '  %-10s %s\n' "listen"   "http://$HOST:$PORT"
+printf '  %-10s %s\n' "search"   "${GEOCODER:-open-meteo (set KUNDALI_GEOCODER=off to disable)}"
 
 # ---------------------------------------------------------------------------
 # 1. Prerequisites: git, curl, Python >= 3.10 with venv, and libcairo
@@ -317,6 +322,7 @@ WorkingDirectory=$DATA_DIR
 ExecStart=$VENV/bin/kundali-web --host $HOST --port $PORT --db $DB_PATH
 Environment=KUNDALI_DB=$DB_PATH
 Environment=PYTHONUNBUFFERED=1
+${GEOCODER:+Environment=KUNDALI_GEOCODER=$GEOCODER}
 Restart=on-failure
 RestartSec=3
 
