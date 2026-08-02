@@ -585,8 +585,10 @@ async function form(rec) {
       <option value="lahiri"${v.ayanamsa === 'lahiri' ? ' selected' : ''}>Lahiri</option>
     </select>
     <label for="f-varsha">Varshaphala years (optional)</label>
-    <input id="f-varsha" value="${esc(v.varsha_years)}" inputmode="numeric"
-           placeholder="2026, 2027, 2028">
+    <!-- No inputmode: numeric gets iOS' phone keypad, which has neither a
+         comma nor a space, so the list separator becomes untypeable. -->
+    <input id="f-varsha" value="${esc(v.varsha_years)}"
+           placeholder="2026 2027 2028">
     <label for="f-notes">Notes</label>
     <textarea id="f-notes" rows="2">${esc(v.notes)}</textarea>
     <div style="margin-top:18px">
@@ -898,8 +900,8 @@ function tabReport(s) {
       <label for="r-asof">As-of date (drives “Dasha now” and Sade Sati)</label>
       <input id="r-asof" type="date" value="${esc(s.asof)}">
       <label for="r-varsha">Varshaphala years for the report</label>
-      <input id="r-varsha" inputmode="numeric" value="${esc(s.chart.varsha_years || '')}"
-             placeholder="2026, 2027">
+      <input id="r-varsha" value="${esc(s.chart.varsha_years || '')}"
+             placeholder="2026 2027">
       <button class="btn small" id="r-apply" style="margin:10px 0 16px">
         Recompute this view</button>
       <button class="btn primary" id="r-pdf">⤓ PDF report</button>

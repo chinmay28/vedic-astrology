@@ -317,7 +317,10 @@ def validate(raw: dict) -> dict:
         "lat": _num(raw, "lat", -90, 90), "lon": _num(raw, "lon", -180, 180),
         "place": str(raw.get("place") or "").strip()[:120],
         "ayanamsa": ayanamsa,
-        "varsha_years": ",".join(str(y) for y in
+        # Space-separated, because this string is echoed back into the
+        # input and a phone keypad cannot type a comma to extend it.
+        # parse_years still reads either, so older comma rows load fine.
+        "varsha_years": " ".join(str(y) for y in
                                  parse_years(raw.get("varsha_years"))),
         "notes": str(raw.get("notes") or "").strip()[:2000],
     }

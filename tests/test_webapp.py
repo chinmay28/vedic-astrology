@@ -64,6 +64,16 @@ def test_parse_years_accepts_lists_and_strings():
     assert parse_years("") == []
 
 
+def test_years_are_stored_space_separated():
+    """The stored string goes straight back into the input, and a phone
+    keypad has no comma key - so the round trip has to be typeable with
+    the space bar alone. Commas still parse, for rows written before."""
+    assert validate({**C3, "varsha_years": "2026 2027"})["varsha_years"] \
+        == "2026 2027"
+    assert validate({**C3, "varsha_years": "2027,2026"})["varsha_years"] \
+        == "2026 2027"
+
+
 def test_validate_place_keeps_the_timezone_optional():
     rec = validate_place({"name": "Sirsi", "lat": "14.6197", "lon": 74.8354})
     assert rec == {"name": "Sirsi", "lat": pytest.approx(14.6197),
