@@ -104,6 +104,20 @@ The package is a layered pipeline: ephemeris → pure computation → rendering.
   depend on them. Do not "finish" the rename without a migration path in
   both installers. The same words are also domain vocabulary inside a
   report, which is why the rename cost nothing there.
+- **The GUI is an app shell, not a scrolling document.** `body` is a flex
+  column sized with `100lvh`; the app bar and the tab bar are in-flow
+  children pinned to its ends, `main` is the only scrolling box (which is
+  why navigation resets `view.scrollTop`, not `window.scrollTo`), and the
+  floating add button lives in the shell rather than inside a view that
+  would scroll it away. Nothing bottom-anchored may go back to
+  `position: fixed`: in an installed iOS PWA the fixed viewport is one
+  status bar shorter than the screen, so `bottom: 0` landed at 812pt of an
+  iPhone 16 Pro's 874pt and the tab bar floated over a 62pt dead strip.
+  `100lvh` is the whole screen and holds still across keyboard and toolbar
+  changes; CountRoster's shell is the reference implementation.
+- `/` is served cache-first by the service worker, so a change under
+  `webapp/static/` only reaches an installed app if `SHELL` in `sw.js` is
+  bumped in the same commit.
 - Branding lives in `webapp/static/`: `icon.svg` is the app mark (also
   rasterised for the PWA icons), `dev-badge*.png` the developer badge.
   The version shown in the app header comes from `/api/health`, i.e.

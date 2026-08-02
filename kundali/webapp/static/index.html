@@ -5,10 +5,13 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#0e1124">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<!-- Not black-translucent: iOS then sizes the web view as if the status bar
-     were still there but draws it from the top of the screen, so `bottom: 0`
-     stops one status bar short and the tab bar floats above a dead strip. -->
-<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<!-- Translucent, as in CountRoster: the web view is then the whole screen and
+     the safe-area insets describe it honestly, which is what the app shell in
+     app.css sizes itself from. (`black` sizes the view as if the status bar
+     were still there but draws it from the top of the screen, so anything
+     anchored to the bottom of the viewport lands one status bar short.) The
+     app bar pays the top inset back as padding. -->
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Janma Kundali">
 <title>Janma Kundali</title>
 <link rel="manifest" href="/manifest.webmanifest">
@@ -34,6 +37,10 @@
 <main id="view" aria-live="polite"></main>
 
 <nav class="tabbar" id="tabbar" hidden></nav>
+
+<!-- The add button floats against the shell, so it lives here rather than in
+     the view: inside <main> it would scroll away with the list under it. -->
+<button class="fab" id="fab" hidden>+</button>
 
 <div class="toast" id="toast" hidden></div>
 <div class="dev-flash" id="dev-flash" hidden>
