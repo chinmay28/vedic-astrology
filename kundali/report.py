@@ -28,8 +28,8 @@ from .sadesati import (IMPACTS, NAVIGATION, current_status, lifetime_table,
 from .varga import (navamsa_chart, shodashavarga_table, vargottama,
                     vimshopaka)
 from .dasha import antardashas_in_window, mahadashas
-from .model import (Chart, DIG_BALA_HOUSE, HOUSE_SIGNIFICATIONS, SIGNS,
-                    SIGN_LORD, dignity, nakshatra_of, sign_of)
+from .model import (Chart, DIG_BALA_HOUSE, HOUSE_SIGNIFICATIONS, NINE_GRAHAS,
+                    SIGNS, SIGN_LORD, dignity, nakshatra_of, sign_of)
 from .varshaphal import (Varsha, cast_varsha,
                          outlook as varsha_outlook,
                          sade_sati_phase)
@@ -180,6 +180,32 @@ def _natal_section(natal: Chart, work_dir: str, window: tuple[float, float],
     el += [_table(rows, [22, 150, 310], fs=7.8), Spacer(1, 2*mm),
            Paragraph("Numbers in parentheses give the aspect cast (7 = opposition; "
                      "4/8 Mars, 5/9 Jupiter, 3/10 Saturn).", SMALL)]
+
+    el += [Paragraph("What each aspect implies", H3), _guide("drishti")]
+    reads = aspects.readings(natal)
+    if not reads:
+        el.append(Paragraph("No graha aspects another graha or the Lagna "
+                            "in this chart.", BODY))
+    for a in NINE_GRAHAS:
+        mine = [r for r in reads if r["from"] == a]
+        if not mine:
+            continue
+        el.append(Paragraph(a, H3))
+        for r in mine:
+            target = "the Lagna" if r["target_is_lagna"] else r["to"]
+            el.append(Paragraph(
+                f"<b>{a} -&gt; {target}</b> ({r['drishti']} aspect, house "
+                f"{r['house']}, {r['tone']}"
+                f"{', mutual' if r['mutual'] else ''}). {r['text']}", BODY))
+    un = aspects.unaspected(natal)
+    if un:
+        el.append(Paragraph(
+            "<b>Unaspected:</b> " + ", ".join(un)
+            + (" receives" if len(un) == 1 else " receive")
+            + " no drishti "
+            "from any graha - the classics read such a graha as running "
+            "unsupervised, delivering its own nature with nothing to "
+            "soften or check it.", SMALL))
 
     el.append(Paragraph("Vimshottari Mahadasha", H2))
     el.append(_guide("dasha"))

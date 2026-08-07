@@ -99,6 +99,22 @@ many inbound aspects is still highly active** — activation by drishti is
 as real as occupation. A powerful cluster with *no* benefic aspect runs
 "raw"; a difficult conjunction aspected by Jupiter runs "supervised."
 
+**What each aspect implies.** Under the table, every drishti the chart
+casts is read out one at a time, grouped under the planet casting it:
+what that planet's gaze does to whatever it falls on, applied to the
+karakatva of the planet (or the Lagna) it looks at and to the house
+those matters work out through. Each one carries a grade —
+*supportive*, *mixed* or *testing* — computed from the aspecting
+planet's natural nature (benefic/malefic; the Moon counts as a benefic
+waxing and a malefic waning), its dignity and combustion, and its
+natural friendship toward what it aspects. Read the grade as weight,
+not verdict: a single testing aspect is not a problem, a convergence of
+them on one planet is a theme. Three cautions the classics insist on and
+this section repeats: a planet **nobody** aspects is unsupervised rather
+than free; Mercury is graded a benefic here though the tradition has it
+take the colour of its company; and conjunction is not drishti — for
+planets sharing a house, read the occupants column.
+
 ## 6. Vimshottari Mahadasha
 
 The 120-year planetary period cycle, seeded from the natal Moon's

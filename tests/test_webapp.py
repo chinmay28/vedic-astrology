@@ -223,6 +223,24 @@ def test_varsha_defaults_to_this_year_and_the_next():
         assert len(v["outlook"]["months"]) == len(v["mudda"])
 
 
+def test_summary_carries_the_aspect_readings(summary):
+    """The drishti section the Charts tab renders: one entry per aspect
+    cast, grouped-ready (ordered by the aspecting graha) and graded."""
+    from kundali.aspects import edges, readings, unaspected
+    from kundali.model import NINE_GRAHAS
+    natal = service.cast(C3)
+    a = summary["aspects"]
+    assert a["readings"] == readings(natal)
+    assert a["unaspected"] == unaspected(natal)
+    assert len(a["readings"]) >= len(edges(natal))
+    order = [NINE_GRAHAS.index(r["from"]) for r in a["readings"]]
+    assert order == sorted(order)
+    for r in a["readings"]:
+        assert r["tone"] in ("supportive", "mixed", "testing")
+        assert len(r["text"]) > 120
+    assert summary["guidance"]["drishti"]
+
+
 def test_summary_carries_the_week_of_the_asof_date(summary):
     """asof is a Saturday - the week must still start on the Monday."""
     w = summary["week"]
