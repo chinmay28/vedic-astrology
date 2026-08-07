@@ -259,7 +259,9 @@ def summary(rec: dict, asof: str | None = None) -> dict:
                             "significations": HOUSE_SIGNIFICATIONS[h][1],
                             "occupants": occ[h],
                             "aspected_by": inbound.get(h, [])}
-                           for h in range(1, 13)]},
+                           for h in range(1, 13)],
+                "readings": aspects.readings(natal),
+                "unaspected": aspects.unaspected(natal)},
             "week": week_outlook(natal, asof_dt, today=datetime.now()),
             "dasha_now": _dasha_now(natal, jd_now),
             "mahadashas": [{**_period(m, natal.tz, jd_now),

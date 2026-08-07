@@ -22,8 +22,8 @@ from .sadesati import (IMPACTS, NAVIGATION, PHASES, current_status,
                        lifetime_table, severity_profile)
 from .dasha import antardashas_in_window, mahadashas
 from .diagrams import north_svg, south_svg
-from .model import (Chart, HOUSE_SIGNIFICATIONS, SEVEN_GRAHAS, SIGNS,
-                    SIGN_LORD, dignity, nakshatra_of, sign_of)
+from .model import (Chart, HOUSE_SIGNIFICATIONS, NINE_GRAHAS, SEVEN_GRAHAS,
+                    SIGNS, SIGN_LORD, dignity, nakshatra_of, sign_of)
 from .varga import navamsa_chart, vargottama
 from .varshaphal import cast_varsha, outlook as varsha_outlook
 from .weekly import week_outlook
@@ -142,6 +142,32 @@ def build_html(natal: Chart, varsha_years: list[int], out_path: str, asof=None) 
     h.append(_tbl(["H", "Occupants", "Aspected by"],
                   [[str(i), ", ".join(occ[i]) or "-", ", ".join(inbound[i]) or "-"]
                    for i in range(1, 13)]))
+
+    h.append("<h3>What each aspect implies</h3>" + _g("drishti"))
+    reads = aspects.readings(natal)
+    if not reads:
+        h.append('<p class="sub">No graha aspects another graha or the '
+                 "Lagna in this chart.</p>")
+    for a in NINE_GRAHAS:
+        mine = [r for r in reads if r["from"] == a]
+        if not mine:
+            continue
+        h.append(f"<p><b>{escape(a)}</b></p>")
+        for r in mine:
+            target = ("the Lagna" if r["target_is_lagna"] else r["to"])
+            h.append(f'<p><b style="color:var(--gold)">{escape(a)} &rarr; '
+                     f'{escape(target)}</b> <span class="sub">'
+                     f'{escape(r["drishti"])} aspect &middot; house '
+                     f'{r["house"]} &middot; {escape(r["tone"])}'
+                     f'{" &middot; mutual" if r["mutual"] else ""}</span><br>'
+                     f'{escape(r["text"])}</p>')
+    un = aspects.unaspected(natal)
+    if un:
+        h.append(f'<div class="note"><b>Unaspected:</b> {", ".join(un)}'
+                 + (" receives" if len(un) == 1 else " receive")
+                 + " no drishti from any graha - the classics read "
+                 "such a graha as running unsupervised, delivering its "
+                 "own nature with nothing to soften or check it.</div>")
 
     h.append("<h2>Vimshottari Dasha</h2>" + _g("dasha"))
     mds = mahadashas(natal.bodies["Moon"].lon, natal.jd)

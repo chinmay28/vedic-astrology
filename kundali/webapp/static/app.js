@@ -838,12 +838,48 @@ function tabCharts(s) {
             s.aspects.houses.map((h) => [h.house, h.sign,
               h.occupants.join(', ') || '—', h.aspected_by.join(', ') || '—']))
         + hint(s.guidance.aspects))
+    + drishtiCard(s)
     + card('Bhav Chalit', (s.bhav.shifts.length
         ? `<p class="small">House shifts vs whole sign: ` + s.bhav.shifts.map((x) =>
             `${esc(x.planet)} ${x.whole_sign}→${x.chalit}`).join(', ') + '</p>'
         : '<p class="small muted">No planet shifts house between the two systems.</p>')
         + `<details><summary>Bhava spans</summary>${table(s.bhav.table[0], s.bhav.table.slice(1))}</details>`
         + hint(s.guidance.bhav));
+}
+
+const TONE_CLASS = { supportive: 'good', mixed: '', testing: 'bad' };
+
+/* One drishti per paragraph, grouped under the graha casting it and
+   folded away: a chart casts a dozen-odd aspects, which is a page of
+   prose on a phone unless the reader opens the graha they came for. */
+function drishtiCard(s) {
+  const rs = s.aspects.readings;
+  const un = s.aspects.unaspected;
+  const label = (r) => (r.target_is_lagna ? 'Lagna' : r.to);
+  const groups = [];
+  rs.forEach((r) => {
+    const last = groups[groups.length - 1];
+    if (last && last.from === r.from) last.items.push(r);
+    else groups.push({ from: r.from, items: [r] });
+  });
+  const body = groups.map((g) => `
+    <details>
+      <summary>${esc(g.from)} → ${esc(g.items.map(label).join(', '))}</summary>
+      ${g.items.map((r) => `
+        <p class="small muted">${esc(label(r))} · ${esc(r.drishti)} aspect ·
+           house ${r.house} ${esc(r.sign)}
+           <span class="chip ${TONE_CLASS[r.tone]}">${esc(r.tone)}</span>${
+             r.mutual ? '<span class="chip">mutual</span>' : ''}</p>
+        <p>${esc(r.text)}</p>`).join('')}
+    </details>`).join('');
+
+  return card('What each aspect implies', (body
+      || '<p class="small muted">No graha aspects another graha or the'
+         + ' Lagna in this chart.</p>')
+    + (un.length ? `<p class="small muted">Unaspected: ${esc(un.join(', '))}
+        — no drishti reaches ${un.length === 1 ? 'it' : 'them'}, which the
+        classics read as unsupervised rather than free.</p>` : '')
+    + hint(s.guidance.drishti));
 }
 
 function wireDiagrams() {

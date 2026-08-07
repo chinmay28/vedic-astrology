@@ -493,3 +493,57 @@ def test_sadesati_cache_keys_on_ayanamsa():
     assert spans_r != spans_l                   # ~12 days apart, not shared
     assert _raw_spans(raman) == spans_r         # and stable either way round
     assert _raw_spans(lahiri) == spans_l
+
+
+# ---------- drishti readings: what each aspect implies ----------
+
+def test_readings_cover_every_drishti_cast(c1, c2, c3):
+    """One reading per planet-to-planet edge, plus one per drishti that
+    lands on the Lagna. Nothing cast is dropped, nothing invented."""
+    from kundali.aspects import SPECIAL, edges, readings
+    for chart in (c1, c2, c3):
+        rs = readings(chart)
+        to_planets = [(r["from"], r["to"], r["offset"]) for r in rs
+                      if not r["target_is_lagna"]]
+        assert sorted(to_planets) == sorted(edges(chart))
+        expected_lagna = sum(
+            1 for p in SPECIAL for off in SPECIAL[p]
+            if ((chart.house_of(p) - 1 + off - 1) % 12) + 1 == 1)
+        assert sum(r["target_is_lagna"] for r in rs) == expected_lagna
+        for r in rs:
+            assert r["house"] == (1 if r["target_is_lagna"]
+                                  else chart.house_of(r["to"]))
+            assert r["tone"] in ("supportive", "mixed", "testing")
+            assert r["text"].startswith(r["from"] + " casts its ")
+
+
+def test_reading_tone_follows_nature_dignity_and_friendship(c1):
+    """The grade is rule-based, so it is pinned: C1's Jupiter (a natural
+    benefic, in a friend's sign) and its Saturn (a natural malefic, in
+    Sagittarius - an enemy's sign) must not read alike."""
+    from kundali.aspects import readings
+    by_pair = {(r["from"], r["to"]): r for r in readings(c1)}
+    assert by_pair[("Jupiter", "Mars")]["tone"] == "supportive"
+    assert by_pair[("Jupiter", "Mars")]["mutual"] is True
+    assert by_pair[("Saturn", "Sun")]["tone"] == "testing"
+    assert "natural malefic" in by_pair[("Saturn", "Sun")]["text"]
+    assert by_pair[("Saturn", "Sun")]["drishti"] == "3rd"
+
+
+def test_waning_moon_is_read_as_a_malefic(c1, c2):
+    """The one nature the classics make conditional. C1 is born in the
+    bright half, C2 in the dark half (Krishna Ekadashi)."""
+    from kundali.aspects import nature
+    assert nature(c1, "Moon") == "benefic"
+    assert nature(c2, "Moon") == "malefic"
+    assert nature(c1, "Jupiter") == "benefic"
+    assert nature(c1, "Rahu") == "malefic"
+
+
+def test_unaspected_grahas_are_exactly_those_no_edge_reaches(c1, c2, c3):
+    from kundali.aspects import edges, unaspected
+    from kundali.model import NINE_GRAHAS
+    for chart in (c1, c2, c3):
+        seen = {b for _, b, _ in edges(chart)}
+        assert unaspected(chart) == [p for p in NINE_GRAHAS if p not in seen]
+    assert "Saturn" in unaspected(c2)      # a chart with wide-open grahas

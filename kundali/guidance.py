@@ -55,6 +55,20 @@ GUIDANCE: dict[str, str] = {
         "aspect runs 'raw' while a harsh conjunction watched by Jupiter "
         "runs 'supervised'. Mutual aspects are standing dialogues between "
         "the two planets' life areas."),
+    "drishti": (
+        "Each entry reads one aspect: the aspecting graha's gaze (what "
+        "it does to whatever it falls on), applied to the karakatva of "
+        "what it looks at and to the house those matters work out "
+        "through. The supportive / mixed / testing grade is rule-based - "
+        "the aspecting graha's natural nature, its dignity and "
+        "combustion, and its natural friendship toward what it aspects - "
+        "so read it as weight, not verdict, and let the whole set "
+        "converge before concluding anything. Three cautions the "
+        "classics insist on: a graha nobody aspects is unsupervised "
+        "rather than free; Mercury is graded a benefic here, though the "
+        "tradition has it take the colour of its company; and "
+        "conjunction is not drishti - for grahas sharing a house, read "
+        "the occupants column above."),
     "dasha": (
         "The Vimshottari system activates one planet's promise at a time. "
         "The Mahadasha lord sets the era; the Antardasha lord the "
