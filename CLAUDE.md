@@ -127,11 +127,16 @@ The package is a layered pipeline: ephemeris → pure computation → rendering.
   The version shown in the app header comes from `/api/health`, i.e.
   `kundali.__version__` — the same string stamped into the PDF footer and
   the HTML report, so a document always names the build that made it.
-- **The version assembles itself; do not hand-write one.**
-  `kundali/version.py` holds `MAJOR`/`MINOR` and nothing else does -
-  `pyproject.toml` is `dynamic` and reads `kundali.__version__`. The
-  patch is the commit count (every commit is a patch release, as in
-  CountRoster), resolved in this order: `$KUNDALI_VERSION_PATCH` ->
+- **The version assembles itself; do not hand-write one.** The scheme is
+  the calendar one sand-vault uses: `YEAR.MONTH.PATCH`, where the leading
+  numbers name the release line rather than promise anything about
+  compatibility. `kundali/version.py` holds `YEAR`/`MONTH` and nothing
+  else does - `pyproject.toml` is `dynamic` and reads
+  `kundali.__version__`. Bump them by hand when a line opens, never from
+  the build clock, and keep the month unpadded: PEP 440 normalises
+  `2026.08` to `2026.8`, so a padded constant would only make the source
+  disagree with what pip records. The patch is the commit count (every
+  commit is a patch release), resolved in this order: `$KUNDALI_VERSION_PATCH` ->
   `git rev-list --count HEAD` in the checkout -> the patch pip recorded
   in the installed metadata -> 0. That last-resort 0 is deliberate: a
   shallow clone must not report a number that is too small. The Docker

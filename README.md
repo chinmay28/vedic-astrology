@@ -170,12 +170,18 @@ is the PDF from the terminal. The running version is shown in the app
 header, on the Data screen and in the footer of every report, so it is
 always clear which build produced a document.
 
-**Version numbers.** `MAJOR.MINOR.PATCH`, where the patch is the
-repository's commit count — every commit is a patch release, so `1.5.42`
-is the 42nd commit on the 1.5 line, the same scheme
-[CountRoster](https://github.com/chinmay28/CountRoster) uses. `MAJOR` and
-`MINOR` are declared in `kundali/version.py` and nowhere else;
-`scripts/version.py` prints what this checkout would build as. A build
+**Version numbers.** `YEAR.MONTH.PATCH` — a calendar version, where the
+patch is the repository's commit count, so `2026.8.42` is the 42nd commit
+on the 2026.8 line, the same scheme
+[sand-vault](https://github.com/chinmay28/sand-vault) uses. There is no
+semantic major/minor: the leading numbers say *when* a release line
+opened, not what it promises about compatibility — what breaks on an
+upgrade is what the release notes are for. `YEAR` and `MONTH` are
+declared in `kundali/version.py` and nowhere else, bumped by hand rather
+than read from the build clock, so rebuilding an old tree still reports
+what it originally shipped; `scripts/version.py` prints what this
+checkout would build as. The month is written plain (`2026.8.42`, not
+`2026.08.42`) because PEP 440 strips the leading zero anyway. A build
 that genuinely cannot count (a shallow clone) reports patch `0` rather
 than a number that is too small.
 

@@ -1,6 +1,6 @@
 [project]
 name = "kundali-report"
-# MAJOR.MINOR from kundali/version.py, patch = the commit count. Building
+# YEAR.MONTH from kundali/version.py, patch = the commit count. Building
 # from a checkout stamps the real number into the wheel metadata, which is
 # where an install with no .git reads it back from at runtime.
 dynamic = ["version"]

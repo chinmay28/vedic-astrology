@@ -1,4 +1,4 @@
-"""The version scheme: MAJOR.MINOR from source, patch = commit count.
+"""The version scheme: YEAR.MONTH from source, patch = commit count.
 
 What matters here is that a build never *invents* a patch number - it
 either counts the commits, reads back what a build stamped, or says 0.
@@ -12,11 +12,18 @@ from kundali import __version__
 from kundali import version as v
 
 
-def test_version_is_major_minor_and_a_patch():
+def test_version_is_year_month_and_a_patch():
     parts = __version__.split(".")
     assert len(parts) == 3
-    assert (parts[0], parts[1]) == (str(v.MAJOR), str(v.MINOR))
+    assert (parts[0], parts[1]) == (str(v.YEAR), str(v.MONTH))
     assert parts[2].isdigit()
+
+
+def test_the_month_is_a_calendar_month():
+    """A version has to name a real month, and stay valid semver for the
+    sibling projects that parse it - which is also why it is unpadded."""
+    assert 1 <= v.MONTH <= 12
+    assert not str(v.MONTH).startswith("0")
 
 
 def test_patch_is_this_checkout_s_commit_count():
@@ -27,7 +34,7 @@ def test_patch_is_this_checkout_s_commit_count():
     real = subprocess.run(["git", "rev-list", "--count", "HEAD"],
                           cwd=v._ROOT, capture_output=True, text=True)
     assert str(counted) == real.stdout.strip()
-    assert v.version() == f"{v.MAJOR}.{v.MINOR}.{counted}"
+    assert v.version() == f"{v.YEAR}.{v.MONTH}.{counted}"
 
 
 def test_a_stamped_patch_wins(monkeypatch):
@@ -35,7 +42,7 @@ def test_a_stamped_patch_wins(monkeypatch):
     count in as a build argument."""
     monkeypatch.setenv("KUNDALI_VERSION_PATCH", "311")
     assert v.patch() == 311
-    assert v.version() == f"{v.MAJOR}.{v.MINOR}.311"
+    assert v.version() == f"{v.YEAR}.{v.MONTH}.311"
 
 
 def test_a_nonsense_stamp_is_ignored(monkeypatch):

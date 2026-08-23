@@ -1,10 +1,19 @@
 """version.py - the one place the version number is assembled.
 
-The scheme is MAJOR.MINOR.PATCH, where MAJOR and MINOR are declared
-here and PATCH is the repository's commit count: every commit is a patch
-release, so `1.5.42` is the 42nd commit on the 1.5 line. Bump MINOR when
-the app gains something worth naming, MAJOR when the data or deployment
-contract breaks.
+The scheme is calendar-based: YEAR.MONTH.PATCH, where YEAR and MONTH are
+declared here and PATCH is the repository's commit count: every commit is
+a patch release, so `2026.8.42` is the 42nd commit on the 2026.8 line.
+The leading numbers say *when* a release line opened, not what it
+promises about compatibility - what breaks on an upgrade is what the
+release notes are for. Bump them by hand when a line opens; they are
+deliberately not read from the build clock, which would move the version
+without a commit.
+
+The month is written plain, never zero-padded. PEP 440 normalises
+`2026.08.42` to `2026.8.42` anyway, so the padded form would only make
+the string in source disagree with the one pip records; semver, which the
+sibling projects on this scheme have to satisfy, forbids the leading zero
+outright.
 
 Resolution order for the patch, first hit wins:
 
@@ -29,8 +38,8 @@ import os
 import subprocess
 from pathlib import Path
 
-MAJOR = 1
-MINOR = 0
+YEAR = 2026
+MONTH = 8                                           # a calendar month, 1-12
 
 _ROOT = Path(__file__).resolve().parent.parent      # the checkout, if any
 
@@ -69,7 +78,7 @@ def _metadata_patch() -> int | None:
         return None
     if len(parts) < 3 or not parts[2].isdigit():
         return None
-    if (parts[0], parts[1]) != (str(MAJOR), str(MINOR)):
+    if (parts[0], parts[1]) != (str(YEAR), str(MONTH)):
         return None                                 # a stale install's count
     return int(parts[2])
 
@@ -85,7 +94,7 @@ def patch() -> int:
 
 
 def version() -> str:
-    return f"{MAJOR}.{MINOR}.{patch()}"
+    return f"{YEAR}.{MONTH}.{patch()}"
 
 
 if __name__ == "__main__":                          # pragma: no cover
