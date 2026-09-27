@@ -153,7 +153,8 @@ name; the package and commands keep the `kundali-` prefix.
 
 The server itself is the `kundali-web` console script, which is what the
 container runs; [DEPLOYMENT.md](DEPLOYMENT.md) covers running it directly
-or under systemd, plus upgrades, backups and HTTPS.
+or under systemd, plus upgrades, backups, HTTPS and uninstalling
+(`--uninstall` on either installer).
 
 Open it on a phone and *Add to Home Screen* — it is an installable PWA
 (standalone window, cached app shell, previously viewed charts readable
