@@ -45,6 +45,14 @@ Open the URL on a phone and *Add to Home Screen* — it is an installable
 PWA. First build on a Pi takes roughly 5–15 minutes; later runs are much
 quicker.
 
+To remove it, the same command with one flag. It takes out the container,
+the images and the source, and leaves Docker and your charts alone (it
+prints the command that deletes them):
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/chinmay28/vedic-astrology/main/scripts/quickstart.sh | sudo bash -s -- --uninstall
+```
+
 **Re-run the same command to upgrade.** It builds while the old container
 keeps serving, does nothing at all if nothing changed, smoke-tests the new
 image before swapping it in, backs the database up to the host, and rolls
