@@ -11,6 +11,14 @@
 # a Docker volume, so rebuilding or removing the container never touches
 # them - see DEPLOYMENT.md.
 #
+# Remove it again with the same command and one flag:
+#
+#   curl -fsSL https://raw.githubusercontent.com/chinmay28/vedic-astrology/main/scripts/quickstart.sh | sudo bash -s -- --uninstall
+#
+# That stops and removes the container, the images this script built and the
+# source it cloned. Your charts are kept: the data volume and the host backups
+# stay, and it prints the commands that delete them. Docker itself stays too.
+#
 # Re-run the same command to upgrade. It is non-disruptive and data-safe:
 #
 #   * If the rebuilt image is identical to the one already running, nothing
@@ -73,6 +81,14 @@ if [ "$(id -u)" -ne 0 ]; then
   die "Run as root: curl -fsSL .../quickstart.sh | sudo bash   (or: sudo ./scripts/quickstart.sh)"
 fi
 
+# Decided before anything else happens, so an uninstall never installs
+# Docker or clones a tree only to delete it again.
+case "${1:-}" in
+  --uninstall) UNINSTALL=1 ;;
+  "")          UNINSTALL=0 ;;
+  *)           die "Unknown option: $1 (only --uninstall is supported)" ;;
+esac
+
 # ---------------------------------------------------------------------------
 # Configuration
 # ---------------------------------------------------------------------------
@@ -105,6 +121,98 @@ fi
 
 git_src() { git -C "$SRC_DIR" -c safe.directory="$SRC_DIR" "$@"; }
 compose() { docker compose -f "$SRC_DIR/docker-compose.yml" "$@"; }
+
+# ---------------------------------------------------------------------------
+# Uninstall: undo what this script did, and nothing else. The same variables
+# resolve the same paths as the install did. The data volume and the host
+# backups are the user's charts, so they are kept and the way to delete them
+# is printed instead - `down` is never given -v. Docker stays: other things
+# on the host may be using it. Every step tolerates its target being gone
+# already, so a second run (or one after the checkout was deleted by hand)
+# succeeds.
+# ---------------------------------------------------------------------------
+if [ "$UNINSTALL" -eq 1 ]; then
+  DATA_VOLUME="${PROJECT}_kundali-data"
+  case "$PREFIX" in ""|/) die "refusing to uninstall with KUNDALI_PREFIX='$PREFIX'" ;; esac
+  log "kundali-web uninstall (Docker)"
+
+  # deploy/kundali-web-docker.service is installed by hand, not by this
+  # script, but left behind it would try to bring the stack up at every boot
+  # from a directory that no longer exists.
+  DOCKER_UNIT=/etc/systemd/system/kundali-web-docker.service
+  if [ -f "$DOCKER_UNIT" ]; then
+    systemctl disable --now kundali-web-docker.service >/dev/null 2>&1 || true
+    rm -f "$DOCKER_UNIT"
+    systemctl daemon-reload >/dev/null 2>&1 || true
+    ok "removed kundali-web-docker.service"
+  fi
+
+  if ! command -v docker >/dev/null 2>&1; then
+    ok "Docker is not installed - no containers or images to remove"
+  else
+    docker info >/dev/null 2>&1 \
+      || die "the Docker daemon is not responding. Start it (systemctl start docker) and re-run."
+    # By project name rather than by file, so it works with the checkout
+    # already gone; the file is only passed along when it is still there.
+    if [ -f "$SRC_DIR/docker-compose.yml" ]; then
+      compose -p "$PROJECT" down --remove-orphans >/dev/null 2>&1 || true
+    else
+      docker compose -p "$PROJECT" down --remove-orphans >/dev/null 2>&1 || true
+    fi
+    # Belt and braces for an old compose, or none: whatever still carries the
+    # project's label or the fixed container name, and the project network.
+    leftovers="$( { docker ps -aq --filter "label=com.docker.compose.project=$PROJECT"
+                    docker ps -aq --filter "name=^kundali-web$"
+                    docker ps -aq --filter "name=^kundali-preflight-"; } 2>/dev/null | sort -u)"
+    [ -z "$leftovers" ] || echo "$leftovers" | xargs docker rm -f >/dev/null 2>&1 || true
+    docker network rm "${PROJECT}_default" >/dev/null 2>&1 || true
+    ok "container stopped and removed"
+
+    # A pre-flight interrupted mid-way leaves its scratch volume; those hold
+    # a throwaway empty database, never the user's.
+    for vol in $(docker volume ls -q --filter "name=kundali-preflight-" 2>/dev/null); do
+      case "$vol" in kundali-preflight-*) docker volume rm "$vol" >/dev/null 2>&1 || true ;; esac
+    done
+
+    for img in "$IMAGE" "$PREV_IMAGE"; do
+      if docker image inspect "$img" >/dev/null 2>&1; then
+        docker image rm "$img" >/dev/null 2>&1 || warn "could not remove image $img"
+      fi
+    done
+    ok "images removed ($IMAGE, $PREV_IMAGE)"
+  fi
+
+  # Remove only the tree this script cloned. A checkout it was run from is
+  # the user's own - just take back the .env written into it.
+  if [ -n "$LOCAL_CHECKOUT" ]; then
+    if head -1 "$SRC_DIR/.env" 2>/dev/null | grep -q 'written by scripts/quickstart.sh'; then
+      rm -f "$SRC_DIR/.env"
+      ok "removed $SRC_DIR/.env (the checkout itself is yours, and stays)"
+    fi
+  elif [ -e "$PREFIX/venv" ]; then
+    # install-systemd.sh shares $PREFIX/src and upgrades from it.
+    warn "keeping $SRC_DIR: the systemd install in $PREFIX still uses it"
+  elif [ -e "$SRC_DIR" ]; then
+    rm -rf "$SRC_DIR"
+    ok "removed $SRC_DIR"
+  else
+    ok "no source at $SRC_DIR - already gone"
+  fi
+  [ -n "$LOCAL_CHECKOUT" ] || rmdir "$PREFIX" 2>/dev/null || true
+
+  cat <<GONE
+
+${C_GREEN}kundali-web removed.${C_OFF} Your charts were kept:
+
+  Data:     docker volume $DATA_VOLUME
+  Backups:  $BACKUP_DIR
+
+  Delete them for good (there is no undo):
+    docker volume rm $DATA_VOLUME
+    sudo rm -rf $BACKUP_DIR
+GONE
+  exit 0
+fi
 
 log "kundali-web quick start (Docker)"
 printf '  %-9s %s\n' "source"  "$SRC_DIR$( [ -n "$LOCAL_CHECKOUT" ] && echo " (existing checkout)" )"

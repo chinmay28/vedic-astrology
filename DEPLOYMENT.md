@@ -330,25 +330,48 @@ Funnel with an ACL). Do not expose it unauthenticated.
 
 ## Uninstalling
 
-Container install — `down -v` is what deletes the charts, so it is opt-in:
+Each installer removes what it installed when given `--uninstall` — the
+same one-liner, so a deployer that installed with it can uninstall with it.
+Your charts are **kept** either way: deleting them is a separate command,
+which the uninstall prints for you. Pass the same environment variables you
+installed with (`KUNDALI_PREFIX`, `BACKUP_DIR`, `KUNDALI_DATA_DIR`,
+`KUNDALI_SERVICE`) and it resolves the same paths.
+
+Container install:
 
 ```bash
-docker compose down            # stop; the volume survives
-docker compose down -v         # …and delete the data volume too
-docker image rm kundali-web:local
+curl -fsSL https://raw.githubusercontent.com/chinmay28/vedic-astrology/main/scripts/quickstart.sh | sudo bash -s -- --uninstall
+```
+
+It stops and removes the `kundali` compose project (by project name, so it
+works even if the checkout is already gone), the `kundali-web:local` and
+`kundali-web:prev` images, any leftover pre-flight container, and the clone
+in `/opt/kundali/src`. Run from a checkout (`sudo ./scripts/quickstart.sh
+--uninstall`) it leaves that checkout alone and only removes the `.env` it
+wrote there. It also removes `deploy/kundali-web-docker.service` if you
+installed it. Docker itself stays, as does your membership of the `docker`
+group. Kept, and deleted only by hand:
+
+```bash
+docker volume rm kundali_kundali-data     # the database
+sudo rm -rf /var/lib/kundali/backups      # the pre-upgrade backups
 ```
 
 systemd install:
 
 ```bash
-sudo systemctl disable --now kundali-web
-sudo rm /etc/systemd/system/kundali-web.service
-sudo systemctl daemon-reload
-sudo rm -rf /opt/kundali            # code and virtualenvs
-# Your charts live here. Back them up first if you want to keep them:
-sudo rm -rf /var/lib/kundali
-sudo userdel kundali
+curl -fsSL https://raw.githubusercontent.com/chinmay28/vedic-astrology/main/scripts/install-systemd.sh | sudo bash -s -- --uninstall
 ```
+
+It stops and disables the service, removes its unit, the virtualenvs and
+the clone under `/opt/kundali`. Kept, and deleted only by hand:
+
+```bash
+sudo rm -rf /var/lib/kundali && sudo userdel kundali   # database, backups, user
+```
+
+Both are safe to re-run, and each keeps `/opt/kundali/src` while the other
+kind of install is still using it.
 
 ## Without systemd
 

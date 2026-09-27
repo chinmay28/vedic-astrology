@@ -10,6 +10,14 @@
 #
 #   curl -fsSL https://raw.githubusercontent.com/chinmay28/vedic-astrology/main/scripts/install-systemd.sh | sudo bash
 #
+# Remove it again with the same command and one flag:
+#
+#   curl -fsSL https://raw.githubusercontent.com/chinmay28/vedic-astrology/main/scripts/install-systemd.sh | sudo bash -s -- --uninstall
+#
+# That stops and removes the service, its unit, the virtualenvs and the source
+# it cloned. The database, its backups and the service user are kept, and it
+# prints the commands that delete them.
+#
 # What it installs: the repo is cloned to $PREFIX/src and pip-installed into a
 # private virtualenv at $PREFIX/venv, which systemd runs as a dedicated user.
 # There is no build step and no JS toolchain - the PWA is served from the
@@ -78,7 +86,16 @@ step() { printf '\n%s%s%s\n' "$C_DIM" "$*" "$C_OFF"; }
 if [ "$(id -u)" -ne 0 ]; then
   die "Run as root: curl -fsSL .../install-systemd.sh | sudo bash   (or: sudo ./scripts/install-systemd.sh)"
 fi
-command -v systemctl >/dev/null 2>&1 || die "systemd is required (no systemctl found)."
+
+# Decided before anything else happens, so an uninstall never installs
+# packages or clones a tree only to delete it again.
+case "${1:-}" in
+  --uninstall) UNINSTALL=1 ;;
+  "")          UNINSTALL=0 ;;
+  *)           die "Unknown option: $1 (only --uninstall is supported)" ;;
+esac
+[ "$UNINSTALL" -eq 1 ] || command -v systemctl >/dev/null 2>&1 \
+  || die "systemd is required (no systemctl found)."
 
 # ---------------------------------------------------------------------------
 # Configuration
@@ -121,6 +138,64 @@ if git -C "$SELF_DIR" rev-parse --show-toplevel >/dev/null 2>&1; then
     LOCAL_CHECKOUT="$top"
     SRC_DIR="$top"     # install from where the user already cloned
   fi
+fi
+
+# ---------------------------------------------------------------------------
+# Uninstall: undo what this script did, and nothing else. The same variables
+# resolve the same paths as the install did. The database is the user's
+# charts, so it is kept - along with the service user who owns it - and the
+# way to delete them is printed instead. Every step tolerates its target
+# being gone already, so a second run succeeds.
+# ---------------------------------------------------------------------------
+if [ "$UNINSTALL" -eq 1 ]; then
+  case "$PREFIX" in ""|/) die "refusing to uninstall with KUNDALI_PREFIX='$PREFIX'" ;; esac
+  log "kundali-web uninstall (systemd)"
+
+  if command -v systemctl >/dev/null 2>&1; then
+    systemctl disable --now "${SERVICE_NAME}.service" >/dev/null 2>&1 || true
+  fi
+  if [ -f "$UNIT_PATH" ]; then
+    rm -f "$UNIT_PATH"
+    ok "${SERVICE_NAME}.service stopped and removed"
+  else
+    ok "no unit at $UNIT_PATH - already gone"
+  fi
+  if command -v systemctl >/dev/null 2>&1; then
+    systemctl daemon-reload >/dev/null 2>&1 || true
+    systemctl reset-failed "${SERVICE_NAME}.service" >/dev/null 2>&1 || true
+  fi
+
+  if [ -e "$VENV" ] || [ -L "$VENV" ] || [ -e "$VENVS_DIR" ]; then
+    rm -rf "$VENV" "$VENVS_DIR"
+    ok "removed the virtualenvs ($VENV, $VENVS_DIR)"
+  fi
+
+  # Remove only the tree this script cloned; a checkout it was run from is
+  # the user's own.
+  if [ -n "$LOCAL_CHECKOUT" ]; then
+    ok "left your checkout at $SRC_DIR alone"
+  elif command -v docker >/dev/null 2>&1 \
+       && docker inspect kundali-web >/dev/null 2>&1; then
+    # quickstart.sh shares $PREFIX/src and builds its container from it.
+    warn "keeping $SRC_DIR: the Docker install still uses it"
+  elif [ -e "$SRC_DIR" ]; then
+    rm -rf "$SRC_DIR"
+    ok "removed $SRC_DIR"
+  fi
+  [ -n "$LOCAL_CHECKOUT" ] || rmdir "$PREFIX" 2>/dev/null || true
+
+  cat <<GONE
+
+${C_GREEN}kundali-web removed.${C_OFF} Your charts were kept:
+
+  Database:  $DB_PATH
+  Backups:   $BACKUP_DIR
+  User:      $SVC_USER (owns them)
+
+  Delete them for good (there is no undo):
+    sudo rm -rf $DATA_DIR && sudo userdel $SVC_USER
+GONE
+  exit 0
 fi
 
 log "kundali-web quick start"
