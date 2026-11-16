@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Long-press the icon. "New chart" opens the web app's #/new form straight
+     away (core/LaunchTarget); "Settings" reaches the app's own settings
+     whatever the server's page offers. -->
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <shortcut
+        android:enabled="true"
+        android:icon="@mipmap/ic_launcher"
+        android:shortcutId="new_chart"
+        android:shortcutLongLabel="@string/shortcut_new_chart_long"
+        android:shortcutShortLabel="@string/shortcut_new_chart">
+        <intent
+            android:action="io.github.chinmay28.kundali.NEW_CHART"
+            android:targetClass="io.github.chinmay28.kundali.MainActivity"
+            android:targetPackage="io.github.chinmay28.kundali" />
+    </shortcut>
+    <shortcut
+        android:enabled="true"
+        android:icon="@mipmap/ic_launcher"
+        android:shortcutId="settings"
+        android:shortcutShortLabel="@string/settings_short">
+        <intent
+            android:action="io.github.chinmay28.kundali.SETTINGS"
+            android:targetClass="io.github.chinmay28.kundali.SettingsActivity"
+            android:targetPackage="io.github.chinmay28.kundali" />
+    </shortcut>
+</shortcuts>

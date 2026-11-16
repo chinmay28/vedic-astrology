@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The icon's plate colour. Generated from kundali/webapp/static/icon.svg by
+     scripts/android_icons.py. -->
+<resources>
+    <color name="ic_launcher_background">#0E1124</color>
+</resources>

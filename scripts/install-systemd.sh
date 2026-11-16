@@ -328,6 +328,19 @@ build_venv() {                      # build_venv <target-dir>
     || die "the new install cannot be imported - leaving the running service alone."
 }
 
+# The version is the month of HEAD's commit and the commit count. pip reads
+# them from git when it builds in the checkout, but stamp them explicitly so
+# the wheel's metadata - which is what the installed service reports - never
+# depends on how pip happens to build. A shallow clone would undercount, so
+# it stamps no patch (the build then says 0) rather than a wrong one.
+KUNDALI_VERSION_PATCH=""
+if [ "$(git_src rev-parse --is-shallow-repository 2>/dev/null)" != "true" ]; then
+  KUNDALI_VERSION_PATCH="$(git_src rev-list --count HEAD 2>/dev/null || true)"
+fi
+[ -n "$KUNDALI_VERSION_PATCH" ] || warn "cannot count commits here - the build will report patch 0."
+KUNDALI_VERSION_DATE="$(git_src log -1 --format=%cI 2>/dev/null | cut -c1-7 || true)"
+export KUNDALI_VERSION_PATCH KUNDALI_VERSION_DATE
+
 install -d -m 755 "$PREFIX" "$VENVS_DIR"
 build_venv "$NEW_VENV"
 ok "installed $("$NEW_VENV/bin/python" -c 'import kundali; print("kundali", kundali.__version__)')"

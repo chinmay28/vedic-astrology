@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.Kundali" parent="Theme.Material3.Dark.NoActionBar">
+        <item name="colorPrimary">@color/kundali_gold</item>
+        <item name="colorOnPrimary">@color/kundali_bg</item>
+        <item name="colorSecondary">@color/kundali_saffron</item>
+        <item name="android:colorBackground">@color/kundali_bg</item>
+        <item name="colorSurface">@color/kundali_panel</item>
+        <item name="android:windowBackground">@color/kundali_bg</item>
+        <item name="android:statusBarColor">@color/kundali_bg</item>
+        <item name="android:navigationBarColor">@color/kundali_bg</item>
+    </style>
+
+    <!-- No window action bar: the screen has its own toolbar, which it can
+         keep out from under the status bar on an edge-to-edge Android. -->
+    <style name="Theme.Kundali.Settings" parent="Theme.Material3.Dark.NoActionBar">
+        <item name="colorPrimary">@color/kundali_gold</item>
+        <item name="colorOnPrimary">@color/kundali_bg</item>
+        <item name="colorSecondary">@color/kundali_saffron</item>
+        <item name="android:colorBackground">@color/kundali_bg</item>
+        <item name="colorSurface">@color/kundali_bg</item>
+        <item name="android:windowBackground">@color/kundali_bg</item>
+    </style>
+
+    <style name="Theme.Kundali.Invisible" parent="Theme.Kundali">
+        <item name="android:windowIsTranslucent">true</item>
+        <item name="android:windowBackground">@android:color/transparent</item>
+        <item name="android:windowNoTitle">true</item>
+        <item name="android:backgroundDimEnabled">false</item>
+        <item name="android:windowAnimationStyle">@null</item>
+    </style>
+
+    <!-- The developer badge is round, as it is on the web page. -->
+    <style name="ShapeAppearance.Kundali.Circle" parent="">
+        <item name="cornerFamily">rounded</item>
+        <item name="cornerSize">50%</item>
+    </style>
+</resources>

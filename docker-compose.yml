@@ -24,11 +24,12 @@ services:
     build:
       context: .
       args:
-        # The version's patch number is the commit count, and .git is not in
-        # the build context - so it is passed in (quickstart.sh writes it to
-        # the .env beside this file). Empty means "this build cannot tell",
-        # which shows up as patch 0 rather than a wrong number.
+        # The version is the commit's month and the commit count, and .git
+        # is not in the build context - so both are passed in (quickstart.sh
+        # writes them to the .env beside this file). Empty means "this build
+        # cannot tell", which shows up as patch 0 rather than a wrong number.
         KUNDALI_VERSION_PATCH: "${KUNDALI_VERSION_PATCH:-}"
+        KUNDALI_VERSION_DATE: "${KUNDALI_VERSION_DATE:-}"
     image: kundali-web:local
     container_name: kundali-web
     restart: unless-stopped

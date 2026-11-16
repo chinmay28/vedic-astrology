@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- kundali-web on a home network is usually plain HTTP on a private address
+     (it binds 127.0.0.1 or the LAN and has no TLS of its own); there is no
+     certificate it could get. A server behind TLS with a certificate from a
+     private CA works once that CA is installed on the phone, which is why
+     user certificates are trusted as well as the system's. -->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true">
+        <trust-anchors>
+            <certificates src="system" />
+            <certificates src="user" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>
