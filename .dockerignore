@@ -14,3 +14,6 @@ scripts
 *.html
 *.sqlite
 .env
+# The Android app and CI are not part of the server image.
+apps
+.github

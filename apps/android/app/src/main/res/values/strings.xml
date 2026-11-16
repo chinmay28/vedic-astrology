@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Janma Kundali</string>
+    <string name="tagline">Vedic natal and varshaphala charts</string>
+    <string name="settings_title">App settings</string>
+    <string name="settings_short">Settings</string>
+    <string name="shortcut_new_chart">New chart</string>
+    <string name="shortcut_new_chart_long">Cast a new chart</string>
+    <string name="save_to_downloads">Save to Downloads</string>
+
+    <!-- First run -->
+    <string name="setup_intro">Janma Kundali runs on a server of your own — a Raspberry Pi, a desktop, a NAS — that computes the charts and renders the reports. This phone opens it. You can change the address later in the app\'s settings.</string>
+    <string name="setup_address_hint">e.g. 192.168.1.20 or https://charts.example.com — port 8777 unless you give one</string>
+    <string name="setup_checking">Checking…</string>
+    <string name="setup_not_kundali">No Janma Kundali server answered at %1$s. Check the address, or continue anyway.</string>
+    <string name="setup_continue">Continue</string>
+    <string name="setup_continue_anyway">Continue anyway</string>
+    <string name="setup_version">Version %1$s</string>
+    <string name="dev_badge_label">Show the developer badge</string>
+    <string name="dev_badge_full">Built by CM Hegday — 0x434d</string>
+
+    <!-- Main screen -->
+    <string name="connecting">Connecting to %1$s…</string>
+    <string name="cannot_reach">Cannot reach %1$s</string>
+    <string name="bad_certificate">%1$s has a certificate this phone does not trust. Install its CA in Android\'s settings, or connect over http on your own network.</string>
+    <string name="retry">Retry</string>
+    <string name="open_settings">App settings</string>
+
+    <!-- Files -->
+    <string name="saved_to_downloads">Saved %1$s to Downloads/Janma Kundali</string>
+    <string name="save_failed">Could not save %1$s: %2$s</string>
+    <string name="downloading">Downloading %1$s…</string>
+    <string name="no_viewer">Saved %1$s to Downloads/Janma Kundali. No app on this phone opens it.</string>
+    <string name="no_app_for_link">No app on this phone opens that link.</string>
+    <string name="share_with">Share</string>
+
+    <!-- Settings -->
+    <string name="pref_cat_server">Server</string>
+    <string name="pref_address">Server address</string>
+    <string name="pref_cat_reports">Reports</string>
+    <string name="pref_open_reports">Open reports after saving</string>
+    <string name="pref_open_reports_on">A PDF or HTML report opens in the phone\'s viewer as soon as it is in Downloads/Janma Kundali.</string>
+    <string name="pref_open_reports_off">Reports are saved to Downloads/Janma Kundali and left there.</string>
+    <string name="pref_cat_about">About</string>
+    <string name="pref_version">Version</string>
+    <string name="pref_thin">How it works</string>
+    <string name="pref_thin_summary">A window onto your Janma Kundali server. The charts, the reports and the database all live on the server; nothing is computed or kept on this phone.</string>
+    <string name="pref_developer">Built by CM Hegday</string>
+</resources>

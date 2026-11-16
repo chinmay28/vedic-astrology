@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- kundali/webapp/static/app.css, :root -->
+    <color name="kundali_bg">#FF0E1124</color>
+    <color name="kundali_panel">#FF13162C</color>
+    <color name="kundali_ink">#FFECE9DF</color>
+    <color name="kundali_muted">#FF9698BD</color>
+    <color name="kundali_gold">#FFC9A063</color>
+    <color name="kundali_saffron">#FFE0913A</color>
+    <color name="kundali_line">#FF2C2F52</color>
+    <!-- .dev-flash's veil and .dev-btn img's backing -->
+    <color name="dev_flash_veil">#ED080914</color>
+    <color name="dev_badge_backing">#FF101010</color>
+</resources>

@@ -138,6 +138,10 @@ degrees, nakshatras, dasha dates, solar-return dates, muntha houses,
 aspect pairs, yoga detection, DST correctness). If they fail, the
 ephemeris contract has drifted.
 
+The Android app's own tests are JVM tests (`cd apps/android && ./gradlew
+:core:test`); its page bridge and icons are checked from here by
+`tests/test_android_bridge.py` (needs Node) and `tests/test_android_icons.py`.
+
 ## Output formats
 
 `--format pdf` (default), `--format html` (single self-contained file,
@@ -160,6 +164,15 @@ Open it on a phone and *Add to Home Screen* — it is an installable PWA
 (standalone window, cached app shell, previously viewed charts readable
 offline). No build step: the frontend is hand-written HTML/CSS/JS
 served straight from `kundali/webapp/static/`.
+
+**On Android** there is also an app, **Janma Kundali for Android**
+([`apps/android`](apps/android/README.md)): the same web app in front of your
+server, plus what a phone needs — reports saved to *Downloads/Janma Kundali*
+and opened in the phone's PDF viewer, the share sheet for a report, and a
+*New chart* launcher shortcut. It is a thin client (the charts are computed by
+the server, never on the phone). Install it from
+`https://github.com/chinmay28/vedic-astrology/releases/latest/download/janma-kundali.apk`;
+the [Android guide](docs/android.md) covers the rest.
 
 | In the GUI | What you get |
 |---|---|

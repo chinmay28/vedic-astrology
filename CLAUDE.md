@@ -140,15 +140,37 @@ The package is a layered pipeline: ephemeris → pure computation → rendering.
   `kundali.__version__`; `scripts/version.py [--patch|--date]` prints it.
   Keep the month unpadded: PEP 440 normalises `2026.08` to `2026.8`. Each
   half resolves in this order: `$KUNDALI_VERSION_PATCH` /
-  `$KUNDALI_VERSION_DATE` (YYYY-MM) -> git in the checkout -> what pip
-  recorded in the installed metadata (its patch only under its own
-  month) -> patch 0 under the build clock's month. That last-resort 0 is
+  `$KUNDALI_VERSION_DATE` (YYYY-MM) -> git in the checkout -> what a
+  build recorded (an unpacked sdist's `PKG-INFO`, else the installed
+  metadata; its patch only under its own month) -> patch 0 under the
+  build clock's month. That last-resort 0 is
   deliberate: a shallow clone must not report a number that is too small.
   The Docker build has no `.git` (see .dockerignore), so
   `scripts/quickstart.sh` writes both into `.env` and compose passes them
   as build args; `scripts/install-systemd.sh` exports them before pip
   builds, and the release workflow stamps them into the wheel and the
   APK - keep those chains intact when touching any of these files.
+- **The Android app (`apps/android`) is a thin client and stays one.**
+  It is the web app in a web view (Kotlin; `:core` holds every decision,
+  JVM-tested, `:app` is platform glue — see `apps/android/README.md`).
+  Never port computation to it: CPython + pyswisseph + cairo on a phone is
+  out of scope, and a second implementation would break "the web app is a
+  renderer". The page talks to it only through
+  `apps/android/app/src/main/assets/kundali-bridge.js`, which catches the
+  `<a download>` blob clicks `download()` in app.js makes - keep saving
+  that way - and defines `window.kundaliApp`. Anything the page shows only
+  in the app must be gated on that (`inApp()`), so a browser is unchanged;
+  `tests/test_android_bridge.py` pins both halves. Its icons are generated
+  from `webapp/static/icon.svg` by `scripts/android_icons.py` (re-run it
+  when the SVG changes; `tests/test_android_icons.py` checks drift).
+  `.dockerignore` keeps `apps/` out of the image, and setuptools only
+  packages `kundali*`. Gradle there: `./gradlew :core:test :app:lintDebug
+  :app:assembleRelease`.
+- Releases: `.github/workflows/release.yml` publishes the sdist, the wheel,
+  `janma-kundali.apk` (a fixed name: `releases/latest/download/` links
+  depend on it) and `SHA256SUMS`, for tag `v<version>`, and only when
+  `CHANGELOG.md` has a `## v<version>` section; new work goes under
+  `## Unreleased` until a release is cut.
 - The web app adds no dependencies (stdlib `http.server` + `sqlite3`;
   `cairosvg`, already required, rasterises the PWA icons) and no
   frontend build step. Keep it that way.
