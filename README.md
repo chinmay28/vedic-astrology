@@ -179,20 +179,22 @@ is the PDF from the terminal. The running version is shown in the app
 header, on the Data screen and in the footer of every report, so it is
 always clear which build produced a document.
 
-**Version numbers.** `YEAR.MONTH.PATCH` — a calendar version, where the
-patch is the repository's commit count, so `2026.8.42` is the 42nd commit
-on the 2026.8 line, the same scheme
-[sand-vault](https://github.com/chinmay28/sand-vault) uses. There is no
+**Version numbers.** `YEAR.MONTH.PATCH` — a calendar version, where
+YEAR.MONTH is the month of the commit being built and the patch is the
+repository's commit count, so `2026.8.42` is the 42nd commit, made in
+August 2026 — the same scheme
+[SandHarbor](https://github.com/chinmay28/SandHarbor) uses. There is no
 semantic major/minor: the leading numbers say *when* a release line
 opened, not what it promises about compatibility — what breaks on an
-upgrade is what the release notes are for. `YEAR` and `MONTH` are
-declared in `kundali/version.py` and nowhere else, bumped by hand rather
-than read from the build clock, so rebuilding an old tree still reports
-what it originally shipped; `scripts/version.py` prints what this
-checkout would build as. The month is written plain (`2026.8.42`, not
-`2026.08.42`) because PEP 440 strips the leading zero anyway. A build
-that genuinely cannot count (a shallow clone) reports patch `0` rather
-than a number that is too small.
+upgrade is what the release notes are for ([CHANGELOG.md](CHANGELOG.md)).
+Nothing is bumped by hand: the month is the commit's committer date (in
+the committer's timezone), never the build clock, so rebuilding an old
+tree still reports what it originally shipped; `scripts/version.py`
+prints what this checkout would build as (`--patch` and `--date` print
+the halves the installers stamp into a build with no `.git`). The month
+is written plain (`2026.8.42`, not `2026.08.42`) because PEP 440 strips
+the leading zero anyway. A build that genuinely cannot count (a shallow
+clone) reports patch `0` rather than a number that is too small.
 
 **No authentication, by design.** Like the tracker app this borrows its
 shape from, it is meant for a trusted network (LAN, VPN, tailnet);

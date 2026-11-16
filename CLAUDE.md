@@ -128,21 +128,27 @@ The package is a layered pipeline: ephemeris → pure computation → rendering.
   `kundali.__version__` — the same string stamped into the PDF footer and
   the HTML report, so a document always names the build that made it.
 - **The version assembles itself; do not hand-write one.** The scheme is
-  the calendar one sand-vault uses: `YEAR.MONTH.PATCH`, where the leading
-  numbers name the release line rather than promise anything about
-  compatibility. `kundali/version.py` holds `YEAR`/`MONTH` and nothing
-  else does - `pyproject.toml` is `dynamic` and reads
-  `kundali.__version__`. Bump them by hand when a line opens, never from
-  the build clock, and keep the month unpadded: PEP 440 normalises
-  `2026.08` to `2026.8`, so a padded constant would only make the source
-  disagree with what pip records. The patch is the commit count (every
-  commit is a patch release), resolved in this order: `$KUNDALI_VERSION_PATCH` ->
-  `git rev-list --count HEAD` in the checkout -> the patch pip recorded
-  in the installed metadata -> 0. That last-resort 0 is deliberate: a
-  shallow clone must not report a number that is too small. The Docker
-  build has no `.git` (see .dockerignore), so `scripts/quickstart.sh`
-  writes the count into `.env` and compose passes it as a build arg -
-  keep that chain intact when touching either file.
+  SandHarbor's calendar one: `YEAR.MONTH.PATCH`, where YEAR.MONTH is the
+  month of HEAD's commit - its *committer* date, in the committer's own
+  timezone (`git log -1 --format=%cI`, first 7 chars) - and PATCH is the
+  commit count, so every commit is a patch release. There are no
+  constants to bump: the line moves when a commit lands in a new month,
+  and a rebuild of an old tree still reports what it shipped as. Never
+  read it from the build clock (an unstamped tree with no git is the one
+  exception, and it reports patch 0). `kundali/version.py` is the only
+  place it is worked out - `pyproject.toml` is `dynamic` and reads
+  `kundali.__version__`; `scripts/version.py [--patch|--date]` prints it.
+  Keep the month unpadded: PEP 440 normalises `2026.08` to `2026.8`. Each
+  half resolves in this order: `$KUNDALI_VERSION_PATCH` /
+  `$KUNDALI_VERSION_DATE` (YYYY-MM) -> git in the checkout -> what pip
+  recorded in the installed metadata (its patch only under its own
+  month) -> patch 0 under the build clock's month. That last-resort 0 is
+  deliberate: a shallow clone must not report a number that is too small.
+  The Docker build has no `.git` (see .dockerignore), so
+  `scripts/quickstart.sh` writes both into `.env` and compose passes them
+  as build args; `scripts/install-systemd.sh` exports them before pip
+  builds, and the release workflow stamps them into the wheel and the
+  APK - keep those chains intact when touching any of these files.
 - The web app adds no dependencies (stdlib `http.server` + `sqlite3`;
   `cairosvg`, already required, rasterises the PWA icons) and no
   frontend build step. Keep it that way.

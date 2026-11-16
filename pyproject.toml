@@ -1,8 +1,9 @@
 [project]
 name = "kundali-report"
-# YEAR.MONTH from kundali/version.py, patch = the commit count. Building
-# from a checkout stamps the real number into the wheel metadata, which is
-# where an install with no .git reads it back from at runtime.
+# YEAR.MONTH = the month of HEAD's commit, patch = the commit count (see
+# kundali/version.py). Building from a checkout stamps the real number into
+# the wheel metadata, which is where an install with no .git reads it back
+# from at runtime.
 dynamic = ["version"]
 description = "Jyotish natal + Tajika varshaphala PDF report generator (Swiss Ephemeris, sidereal)"
 requires-python = ">=3.10"

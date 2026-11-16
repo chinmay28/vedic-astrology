@@ -301,14 +301,16 @@ else
 fi
 [ -f "$SRC_DIR/docker-compose.yml" ] || die "no docker-compose.yml at $SRC_DIR - checkout failed?"
 
-# The version's patch number is the commit count, and .dockerignore keeps
-# .git out of the build context - so read it here and hand it to the build.
-# A shallow clone would undercount, so it reports nothing instead.
+# The version is the month of HEAD's commit (committer date, committer's
+# timezone) and the commit count, and .dockerignore keeps .git out of the
+# build context - so read both here and hand them to the build. A shallow
+# clone would undercount, so it reports no patch instead.
 VERSION_PATCH=""
 if [ "$(git_src rev-parse --is-shallow-repository 2>/dev/null)" != "true" ]; then
   VERSION_PATCH="$(git_src rev-list --count HEAD 2>/dev/null || true)"
 fi
 [ -n "$VERSION_PATCH" ] || warn "cannot count commits here - the build will report patch 0."
+VERSION_DATE="$(git_src log -1 --format=%cI 2>/dev/null | cut -c1-7 || true)"
 
 # Where to listen is per-host, so it lives in a .env beside the compose file
 # rather than in the compose file itself.
@@ -317,11 +319,12 @@ cat > "$SRC_DIR/.env" <<ENV
 KUNDALI_BIND=$BIND
 KUNDALI_PORT=$PORT
 KUNDALI_VERSION_PATCH=$VERSION_PATCH
+KUNDALI_VERSION_DATE=$VERSION_DATE
 # City search index for the Places tab. Empty = the built-in default;
 # 'off' seals the install and hides the search box. See DEPLOYMENT.md.
 KUNDALI_GEOCODER=$GEOCODER
 ENV
-ok "wrote $SRC_DIR/.env (bind $BIND, port $PORT, version patch ${VERSION_PATCH:-unknown})"
+ok "wrote $SRC_DIR/.env (bind $BIND, port $PORT, version ${VERSION_DATE:-????-??} patch ${VERSION_PATCH:-unknown})"
 
 # ---------------------------------------------------------------------------
 # 3. Build (the old container keeps serving meanwhile)

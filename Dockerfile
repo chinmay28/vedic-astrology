@@ -17,14 +17,17 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends build-essential \
     && rm -rf /var/lib/apt/lists/*
 
-# The patch component of the version is the repository's commit count, and
-# .dockerignore keeps .git out of the build context - so the count comes in
-# as a build argument (scripts/quickstart.sh passes it; docker-compose.yml
-# forwards it). Without it the build honestly reports patch 0 rather than
-# guessing. pip bakes the resolved version into the wheel metadata, which is
-# where the running container reads it back from.
+# The version is the month of the commit (YYYY-MM) and the repository's
+# commit count, and .dockerignore keeps .git out of the build context - so
+# both come in as build arguments (scripts/quickstart.sh writes them to .env;
+# docker-compose.yml forwards them). Without them the build honestly reports
+# patch 0, under the month it was built in, rather than guessing. pip bakes
+# the resolved version into the wheel metadata, which is where the running
+# container reads it back from.
 ARG KUNDALI_VERSION_PATCH=""
-ENV KUNDALI_VERSION_PATCH=${KUNDALI_VERSION_PATCH}
+ARG KUNDALI_VERSION_DATE=""
+ENV KUNDALI_VERSION_PATCH=${KUNDALI_VERSION_PATCH} \
+    KUNDALI_VERSION_DATE=${KUNDALI_VERSION_DATE}
 
 WORKDIR /src
 COPY pyproject.toml ./
