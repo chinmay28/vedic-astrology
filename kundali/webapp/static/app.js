@@ -38,22 +38,30 @@ function busy(on, text) {
   $('#overlay').hidden = !on;
 }
 
+/* A file from the server, and the name it asked to be saved under. */
+async function fetchFile(url, fallbackName) {
+  const res = await fetch(url);
+  if (!res.ok) {
+    let msg = `HTTP ${res.status}`;
+    try { msg = (await res.json()).error || msg; } catch (e) { /* noop */ }
+    throw new Error(msg);
+  }
+  const disp = res.headers.get('Content-Disposition') || '';
+  const m = disp.match(/filename="([^"]+)"/);
+  return { blob: await res.blob(), name: (m && m[1]) || fallbackName };
+}
+
+/* Saved through a blob: anchor - which is also what the Android app's
+   bridge (apps/android/.../kundali-bridge.js) catches and turns into a save
+   to Downloads, so keep it an <a download> click. */
 async function download(url, fallbackName, label) {
   busy(true, label || 'Preparing your download…');
   try {
-    const res = await fetch(url);
-    if (!res.ok) {
-      let msg = `HTTP ${res.status}`;
-      try { msg = (await res.json()).error || msg; } catch (e) { /* noop */ }
-      throw new Error(msg);
-    }
-    const disp = res.headers.get('Content-Disposition') || '';
-    const m = disp.match(/filename="([^"]+)"/);
-    const blob = await res.blob();
-    const href = URL.createObjectURL(blob);
+    const file = await fetchFile(url, fallbackName);
+    const href = URL.createObjectURL(file.blob);
     const a = document.createElement('a');
     a.href = href;
-    a.download = (m && m[1]) || fallbackName;
+    a.download = file.name;
     document.body.appendChild(a);
     a.click();
     a.remove();
@@ -61,6 +69,26 @@ async function download(url, fallbackName, label) {
     toast('Downloaded ' + a.download);
   } catch (err) {
     toast(err.message, true);
+  } finally {
+    busy(false);
+  }
+}
+
+/* Inside the Janma Kundali Android app, which defines window.kundaliApp
+   (and gives the page navigator.share for files). A plain browser has
+   neither, and sees none of what hangs off this. */
+const inApp = () => Boolean(window.kundaliApp);
+
+/* The phone's share sheet, with the report attached - Android app only. */
+async function shareFile(url, fallbackName, label, title) {
+  busy(true, label || 'Preparing the file…');
+  try {
+    const file = await fetchFile(url, fallbackName);
+    const f = new File([file.blob], file.name, { type: file.blob.type });
+    busy(false);
+    await navigator.share({ files: [f], title: title || file.name });
+  } catch (err) {
+    if (err && err.name !== 'AbortError') toast(err.message, true);
   } finally {
     busy(false);
   }
@@ -1088,6 +1116,7 @@ function tabReport(s) {
       <button class="btn small" id="r-apply" style="margin:10px 0 16px">
         Recompute this view</button>
       <button class="btn primary" id="r-pdf">⤓ PDF report</button>
+      ${inApp() ? '<button class="btn" id="r-share">⇪ Share PDF report</button>' : ''}
       <button class="btn" id="r-html">⤓ HTML report (single file)</button>
       <div class="row" style="margin-top:10px">
         <button class="btn small" id="r-json">JSON</button>
@@ -1124,6 +1153,10 @@ function wireReport(s) {
     'kundali.pdf', 'Rendering the PDF…');
   $('#r-html').onclick = () => download(`/api/charts/${id}/report.html` + qs(),
     'kundali.html', 'Rendering the HTML report…');
+  if ($('#r-share')) {
+    $('#r-share').onclick = () => shareFile(`/api/charts/${id}/report.pdf` + qs(),
+      'kundali.pdf', 'Rendering the PDF…', s.chart.name + ' - Janma Kundali');
+  }
   $('#r-json').onclick = () => download(`/api/charts/${id}/export.json` + qs(), 'kundali.json');
   $('#r-csv').onclick = () => download(`/api/charts/${id}/positions.csv`, 'positions.csv');
   $('#r-dasha').onclick = () => download(`/api/charts/${id}/dasha.csv`, 'dasha.csv');
@@ -1162,17 +1195,24 @@ async function dataView() {
          · 0x434d<br>
          <a href="https://github.com/chinmay28" target="_blank" rel="noopener">github.com/chinmay28</a>
          · <a href="https://github.com/chinmay28/vedic-astrology" target="_blank" rel="noopener">source</a></p>`)
-    + card('Install on your phone', `
+    + (inApp() ? card('This app', `
+      <p class="small muted">Janma Kundali for Android
+         ${esc(window.kundaliApp.version || '')}: which server it opens, and
+         whether a report opens as soon as it is saved.</p>
+      <button class="btn" id="d-app">App settings</button>`)
+    /* Already installed, as the Android app: nothing to install. */
+    : card('Install on your phone', `
       <p class="small muted">Add this to your home screen and it opens
          full-screen, works offline for charts you have already viewed, and
          keeps using the same server database.</p>
       <button class="btn" id="d-install">Install app</button>
-      <p class="small muted" id="d-install-note">On iOS: Share → Add to Home Screen.</p>`);
+      <p class="small muted" id="d-install-note">On iOS: Share → Add to Home Screen.</p>`));
 
   $('#d-json').onclick = () => download('/api/export/charts.json', 'kundali-charts.json');
   $('#d-csv').onclick = () => download('/api/export/charts.csv', 'kundali-charts.csv');
   $('#d-places').onclick = () => download('/api/export/places.csv', 'kundali-places.csv');
   $('#d-db').onclick = () => download('/api/export/kundali.sqlite', 'kundali.sqlite');
+  if ($('#d-app')) $('#d-app').onclick = () => window.kundaliApp.openSettings();
   $('#d-file').onchange = async (ev) => {
     const file = ev.target.files[0];
     if (!file) return;
@@ -1193,6 +1233,7 @@ async function dataView() {
     }
   };
   const btn = $('#d-install');
+  if (!btn) return;
   btn.disabled = !state.installer;
   btn.onclick = async () => {
     if (!state.installer) return;
