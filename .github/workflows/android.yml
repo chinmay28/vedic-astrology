@@ -1,0 +1,88 @@
+name: Janma Kundali (Android app)
+
+# Builds the phone app and runs its tests whenever it changes, or anything it
+# depends on: the page bridge's contract with the web client
+# (tests/test_android_bridge.py runs the bridge against app.js's way of
+# saving), and the icons derived from the web app's icon.svg
+# (tests/test_android_icons.py).
+
+on:
+  pull_request:
+    paths:
+      - "apps/android/**"
+      - "kundali/webapp/static/**"
+      - "scripts/android_icons.py"
+      - "tests/test_android_*.py"
+      - ".github/workflows/android.yml"
+  push:
+    branches: [main]
+    paths:
+      - "apps/android/**"
+      - "kundali/webapp/static/**"
+      - "scripts/android_icons.py"
+      - "tests/test_android_*.py"
+      - ".github/workflows/android.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build and test the APK
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/android
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      # The web side of the app: the bridge script against the page's
+      # contract, and the launcher icons against icon.svg. Neither needs the
+      # Swiss Ephemeris, only cairosvg (and the cairo library under it).
+      - name: Bridge and icon tests
+        working-directory: .
+        run: |
+          sudo apt-get install -y --no-install-recommends libcairo2
+          python -m pip install cairosvg pytest
+          python -m pytest -q tests/test_android_bridge.py tests/test_android_icons.py
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      # Everything the app decides, as plain JVM tests.
+      - name: Unit tests
+        run: ./gradlew --no-daemon :core:test
+
+      # The runner image ships the Android SDK; ANDROID_HOME points at it.
+      - name: Lint
+        run: ./gradlew --no-daemon :app:lintDebug
+
+      - name: Build
+        run: ./gradlew --no-daemon :app:assembleRelease
+
+      # Without the bridge the app still opens the page, and then cannot
+      # save a single report, so its absence fails the build.
+      - name: Check the bridge is in the APK
+        run: |
+          apk=$(ls app/build/outputs/apk/release/*.apk)
+          unzip -l "$apk" | grep -q "assets/kundali-bridge.js" || { echo "no kundali-bridge.js in $apk" >&2; exit 1; }
+          echo "kundali-bridge.js present"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: janma-kundali-apk
+          path: apps/android/app/build/outputs/apk/release/*.apk
+          if-no-files-found: error

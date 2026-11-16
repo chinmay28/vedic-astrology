@@ -33,11 +33,13 @@ Resolution, first hit wins, for each half:
        install is always current. A shallow clone cannot count honestly
        and reports no patch rather than a number that is too small (its
        HEAD still has an honest date).
-    3. The version recorded in the installed distribution metadata -
-       which pip wrote from (1) or (2) when the wheel was built. This is
-       the path a container or a venv install takes at runtime. Its
-       patch is used only under its own month, so a stale install's
-       count is never glued onto another line.
+    3. The version already recorded for this code: the ``PKG-INFO`` an
+       unpacked sdist carries at its root, else the installed
+       distribution metadata - which the build wrote from (1) or (2).
+       This is the path a container or a venv install takes at runtime,
+       and a wheel built from the release sdist. Its patch is used only
+       under its own month, so a stale install's count is never glued
+       onto another line.
     4. Patch 0, under the build clock's month (UTC): "this build could
        not tell you".
 
@@ -101,21 +103,47 @@ def commit_month() -> tuple[int, int] | None:
     return parse_month(_git("log", "-1", "--format=%cI"))
 
 
+def _triple(text: str) -> tuple[int, int, int] | None:
+    """``"2026.11.42"`` -> (2026, 11, 42); None for anything else."""
+    parts = text.strip().split(".")
+    if len(parts) < 3 or not all(p.isdigit() for p in parts[:3]):
+        return None
+    year, month, count = (int(p) for p in parts[:3])
+    return (year, month, count) if 1 <= month <= 12 else None
+
+
+def _sdist() -> tuple[int, int, int] | None:
+    """The version an unpacked sdist was built as, from its PKG-INFO -
+    so installing the release tarball reports the release, not 0."""
+    info = _ROOT / "PKG-INFO"
+    if not info.is_file() or _is_checkout():
+        return None
+    try:
+        lines = info.read_text(encoding="utf-8").splitlines()
+    except OSError:
+        return None
+    for line in lines:
+        if line.startswith("Version:"):
+            return _triple(line.split(":", 1)[1])
+    return None
+
+
 def _metadata() -> tuple[int, int, int] | None:
     """(year, month, patch) as pip recorded them, for installs with no
     .git."""
     from importlib.metadata import PackageNotFoundError, version as dist
 
     try:
-        parts = dist("kundali-report").split(".")
+        return _triple(dist("kundali-report"))
     except PackageNotFoundError:
         return None
     except Exception:                               # noqa: BLE001
         return None
-    if len(parts) < 3 or not all(p.isdigit() for p in parts[:3]):
-        return None
-    year, month, count = (int(p) for p in parts[:3])
-    return (year, month, count) if 1 <= month <= 12 else None
+
+
+def _recorded() -> tuple[int, int, int] | None:
+    """What a build already wrote down: the sdist's, else the install's."""
+    return _sdist() or _metadata()
 
 
 def year_month() -> tuple[int, int]:
@@ -127,9 +155,9 @@ def year_month() -> tuple[int, int]:
     committed = commit_month()
     if committed:
         return committed
-    meta = _metadata()
-    if meta:
-        return meta[0], meta[1]
+    recorded = _recorded()
+    if recorded:
+        return recorded[0], recorded[1]
     now = datetime.now(timezone.utc)
     return now.year, now.month
 
@@ -148,9 +176,9 @@ def patch() -> int:
     counted = commit_count()
     if counted is not None:
         return counted
-    meta = _metadata()
-    if meta and meta[:2] == year_month():
-        return meta[2]                              # never a stale line's
+    recorded = _recorded()
+    if recorded and recorded[:2] == year_month():
+        return recorded[2]                          # never a stale line's
     return 0
 
 

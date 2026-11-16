@@ -91,7 +91,7 @@ def test_without_git_or_stamp_it_is_patch_0_this_month(monkeypatch,
                                                       unstamped):
     """Nothing to ask: say so, under the build clock's month."""
     monkeypatch.setattr(v, "_git", lambda *a: None)
-    monkeypatch.setattr(v, "_metadata", lambda: None)
+    monkeypatch.setattr(v, "_recorded", lambda: None)
     from datetime import datetime, timezone
     now = datetime.now(timezone.utc)
     assert v.patch() == 0
@@ -113,6 +113,18 @@ def test_a_stale_install_s_count_is_never_glued_onto_another_month(
     monkeypatch.setattr(v, "_git", lambda *a: None)
     monkeypatch.setattr(v, "_metadata", lambda: (2026, 9, 57))
     assert v.version() == "2026.10.0"
+
+
+def test_an_unpacked_sdist_reports_the_version_it_was_built_as(
+        monkeypatch, tmp_path, unstamped):
+    """The release tarball has no .git; its PKG-INFO says what it is."""
+    (tmp_path / "pyproject.toml").write_text("[project]\n")
+    (tmp_path / "PKG-INFO").write_text(
+        "Metadata-Version: 2.1\nName: kundali-report\nVersion: 2026.11.42\n")
+    monkeypatch.setattr(v, "_ROOT", tmp_path)
+    monkeypatch.setattr(v, "_git", lambda *a: None)
+    monkeypatch.setattr(v, "_metadata", lambda: (2026, 9, 57))
+    assert v.version() == "2026.11.42"
 
 
 def test_metadata_is_well_formed_or_absent():
