@@ -13,7 +13,7 @@ commit whose own version has a section here. To cut a release, rename
 `## Unreleased` to the version that commit builds (`python3
 scripts/version.py`, with a `v`) in the commit itself.
 
-## Unreleased
+## v2026.11.29
 
 **Downloads:** **`janma-kundali.apk`** (new: Janma Kundali for Android — on
 the phone, open
