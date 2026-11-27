@@ -119,8 +119,10 @@ export ANDROID_HOME=/path/to/android-sdk
 
 `-PappVersionName=v2026.11.42 -PappVersionCode=42` stamps a build (the
 release workflow passes the tag and the commit count); unstamped it is `dev`,
-code 1. The release build is signed with the debug key so it sideloads as it
-stands.
+code 1. Releases are signed with one fixed key, read from the `ANDROID_KEYSTORE_BASE64`
+and `ANDROID_KEYSTORE_PASSWORD` repository secrets (a PKCS12 keystore, alias
+`harbor`, shared by every Harbor app), so each release installs over the last.
+A build without them, any local build included, falls back to the debug key.
 
 ## The icon
 
